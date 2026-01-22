@@ -7,10 +7,10 @@
 
 set -e
 
-# Configuration
-LABRAT_DIR="${LABRAT_DIR:-$HOME/.labrat}"
-PRESET_DIR="${LABRAT_DIR}/configs/starship/presets"
-PRESET_MARKER="${LABRAT_DIR}/data/current-starship-preset"
+# Configuration - match paths from common.sh
+LABRAT_DATA_DIR="${LABRAT_DATA_DIR:-$HOME/.local/share/labrat}"
+PRESET_DIR="${LABRAT_DATA_DIR}/configs/starship/presets"
+PRESET_MARKER="${LABRAT_DATA_DIR}/current-starship-preset"
 STARSHIP_CONFIG="$HOME/.config/starship.toml"
 
 # Colors
