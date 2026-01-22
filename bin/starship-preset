@@ -1,0 +1,176 @@
+#!/usr/bin/env bash
+#
+# LabRat: Starship Preset Switcher
+# Switch between starship presets on-the-fly
+# Usage: starship-preset [preset-name|list|preview|current]
+#
+
+set -e
+
+# Configuration
+LABRAT_DIR="${LABRAT_DIR:-$HOME/.labrat}"
+PRESET_DIR="${LABRAT_DIR}/configs/starship/presets"
+PRESET_MARKER="${LABRAT_DIR}/data/current-starship-preset"
+STARSHIP_CONFIG="$HOME/.config/starship.toml"
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+BOLD='\033[1m'
+
+# Ensure data directory exists
+mkdir -p "$(dirname "$PRESET_MARKER")"
+
+# Get list of available presets
+get_presets() {
+    if [[ -d "$PRESET_DIR" ]]; then
+        find "$PRESET_DIR" -name "*.toml" -type f -exec basename {} .toml \; | sort
+    fi
+}
+
+# Get current preset
+get_current() {
+    if [[ -f "$PRESET_MARKER" ]]; then
+        cat "$PRESET_MARKER"
+    elif [[ -L "$STARSHIP_CONFIG" ]]; then
+        basename "$(readlink "$STARSHIP_CONFIG")" .toml
+    else
+        echo "default"
+    fi
+}
+
+# Apply a preset
+apply_preset() {
+    local preset="$1"
+    local preset_file="$PRESET_DIR/${preset}.toml"
+    
+    if [[ ! -f "$preset_file" ]]; then
+        echo -e "${RED}Error:${NC} Preset '$preset' not found"
+        echo "Available presets:"
+        list_presets
+        return 1
+    fi
+    
+    # Backup existing config if it's not a symlink
+    if [[ -f "$STARSHIP_CONFIG" ]] && [[ ! -L "$STARSHIP_CONFIG" ]]; then
+        local backup="${STARSHIP_CONFIG}.backup.$(date +%Y%m%d_%H%M%S)"
+        cp "$STARSHIP_CONFIG" "$backup"
+        echo -e "${YELLOW}Backed up existing config to:${NC} $backup"
+    fi
+    
+    # Create symlink to preset
+    mkdir -p "$(dirname "$STARSHIP_CONFIG")"
+    ln -sf "$preset_file" "$STARSHIP_CONFIG"
+    
+    # Save current preset
+    echo "$preset" > "$PRESET_MARKER"
+    
+    echo -e "${GREEN}✓${NC} Applied starship preset: ${BOLD}${CYAN}$preset${NC}"
+    
+    # Reinitialize starship in current shell
+    echo ""
+    echo -e "${YELLOW}To apply changes to current shell, run:${NC}"
+    echo -e "  ${BOLD}source ~/.bashrc${NC}  (for bash)"
+    echo -e "  ${BOLD}source ~/.zshrc${NC}   (for zsh)"
+    echo ""
+    echo -e "${PURPLE}Or use the quick command:${NC} ${BOLD}starship-reload${NC}"
+}
+
+# List available presets
+list_presets() {
+    local current
+    current=$(get_current)
+    
+    echo -e "${BOLD}${CYAN}Available Starship Presets:${NC}"
+    echo ""
+    
+    while IFS= read -r preset; do
+        if [[ "$preset" == "$current" ]]; then
+            echo -e "  ${GREEN}● ${BOLD}$preset${NC} ${GREEN}(current)${NC}"
+        else
+            echo -e "  ○ $preset"
+        fi
+    done < <(get_presets)
+    
+    echo ""
+    echo -e "${YELLOW}Usage:${NC} starship-preset <preset-name>"
+}
+
+# Interactive preset selector (requires fzf)
+preview_presets() {
+    if ! command -v fzf &>/dev/null; then
+        echo -e "${RED}Error:${NC} fzf is required for interactive preview"
+        echo "Install fzf first, then try again"
+        return 1
+    fi
+    
+    local current
+    current=$(get_current)
+    
+    local selected
+    selected=$(get_presets | fzf \
+        --header="Select Starship Preset (current: $current)" \
+        --preview="cat $PRESET_DIR/{}.toml 2>/dev/null | head -50" \
+        --preview-window=right:60%:wrap \
+        --height=80% \
+        --border \
+        --prompt="Preset > ")
+    
+    if [[ -n "$selected" ]]; then
+        apply_preset "$selected"
+    fi
+}
+
+# Show usage
+show_usage() {
+    echo -e "${BOLD}${CYAN}LabRat Starship Preset Switcher${NC}"
+    echo ""
+    echo -e "${BOLD}Usage:${NC}"
+    echo "  starship-preset                  Show current preset"
+    echo "  starship-preset list             List available presets"
+    echo "  starship-preset <preset-name>    Switch to preset"
+    echo "  starship-preset preview          Interactive fzf picker"
+    echo ""
+    echo -e "${BOLD}Available Presets:${NC}"
+    get_presets | while read -r preset; do
+        echo "  - $preset"
+    done
+    echo ""
+    echo -e "${BOLD}Examples:${NC}"
+    echo "  starship-preset labrat"
+    echo "  starship-preset tokyo-night"
+    echo "  starship-preset minimal"
+}
+
+# Main
+main() {
+    case "${1:-}" in
+        "")
+            echo -e "Current preset: ${BOLD}${CYAN}$(get_current)${NC}"
+            echo ""
+            echo "Run 'starship-preset list' to see available presets"
+            ;;
+        list|ls)
+            list_presets
+            ;;
+        preview|pick|select)
+            preview_presets
+            ;;
+        current)
+            get_current
+            ;;
+        help|-h|--help)
+            show_usage
+            ;;
+        *)
+            apply_preset "$1"
+            ;;
+    esac
+}
+
+main "$@"
