@@ -1,8 +1,6 @@
 # LabRat
 
-**Your trusty environment for every test cage**
-
-LabRat is a modular, portable environment configurator designed for developers and testers who frequently SSH into remote servers. With a single command, you can install and configure your preferred tools, shell enhancements, and development environment.
+LabRat is a modular, portable environment configurator designed for developers and testing on remote machines. With a single command, you can install and configure your preferred tools, shell enhancements, and development environment.
 
 ## Table of Contents
 
@@ -138,11 +136,6 @@ cd Labrat-main
 |--------|-------------|---------|
 | `tmux` | Terminal multiplexer with 8 themes, plugins, mouse support, scratchpad | Latest or pinned |
 
-### Fonts
-
-| Module | Description | Options |
-|--------|-------------|---------|
-| `nerdfonts` | Nerd Fonts for terminal icons and glyphs | JetBrainsMono, FiraCode, Hack, CascadiaCode, UbuntuMono, SourceCodePro |
 
 ### Shell Enhancements
 
@@ -386,18 +379,12 @@ Mouse support is enabled by default:
 
 ## fastfetch Configuration
 
-fastfetch displays system information with a custom LabRat logo.
+fastfetch displays system information.
 
 ### Configuration Files
 
 - `~/.config/fastfetch/config.jsonc` - Full configuration with all modules
 - `~/.config/fastfetch/config-minimal.jsonc` - Minimal configuration for quick display
-
-### Available Logos
-
-- `logo-knife-rat.txt` - Default logo (rat with knife)
-- `labrat-logo.txt` - Original circular design
-- `logo-option1.txt` through `logo-option5.txt` - Alternative designs
 
 ### Custom Modules
 
@@ -592,7 +579,7 @@ Contributions are welcome. Please follow these guidelines:
 1. Create a new file in `modules/<category>/<tool>.sh`
 2. Implement the required functions:
    - `install_<tool>()` - Main installation function
-   - `uninstall_<tool>()` - Cleanup function (optional)
+   - `uninstall_<tool>()` - Cleanup function
 3. Add module to the registry in `install.sh`
 4. Test on Ubuntu and CentOS
 5. Submit a pull request
@@ -694,4 +681,4 @@ This project builds upon the work of many excellent open source projects:
 
 ---
 
-*LabRat - Because every lab needs a trusty rat.*
+*LabRat - Despite All My Rage*
