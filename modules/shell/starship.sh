@@ -125,11 +125,22 @@ install_starship_binary() {
 deploy_starship_presets() {
     log_step "Deploying starship presets..."
     
-    local source_dir="${LABRAT_DIR}/configs/starship/presets"
+    # Target directory in user's data dir
     local target_dir="${LABRAT_DATA_DIR}/configs/starship/presets"
     
     # Create target directory
     ensure_dir "$target_dir"
+    
+    # Source directory - derive from LABRAT_CONFIGS_DIR or script location
+    local source_dir=""
+    if [[ -n "${LABRAT_CONFIGS_DIR:-}" ]] && [[ -d "${LABRAT_CONFIGS_DIR}/starship/presets" ]]; then
+        source_dir="${LABRAT_CONFIGS_DIR}/starship/presets"
+    else
+        # Fall back to relative path from this script
+        local script_dir
+        script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        source_dir="$(dirname "$(dirname "$script_dir")")/configs/starship/presets"
+    fi
     
     # Copy all presets
     if [[ -d "$source_dir" ]]; then
@@ -137,22 +148,22 @@ deploy_starship_presets() {
         log_success "Starship presets deployed to $target_dir"
     else
         log_warn "Preset source directory not found: $source_dir"
-        # Copy from repo configs if available
-        local repo_source="${LABRAT_CONFIGS_DIR}/starship/presets"
-        if [[ -d "$repo_source" ]]; then
-            cp -r "$repo_source"/*.toml "$target_dir/" 2>/dev/null || true
-            log_success "Starship presets deployed from repo"
-        fi
     fi
     
     # Make starship-preset script available
-    if [[ -f "${LABRAT_DIR}/bin/starship-preset" ]]; then
-        chmod +x "${LABRAT_DIR}/bin/starship-preset"
-        # Ensure it's in user's bin
-        if [[ -d "${LABRAT_BIN_DIR}" ]]; then
-            cp "${LABRAT_DIR}/bin/starship-preset" "${LABRAT_BIN_DIR}/"
-            chmod +x "${LABRAT_BIN_DIR}/starship-preset"
-        fi
+    local bin_source=""
+    if [[ -n "${LABRAT_CONFIGS_DIR:-}" ]]; then
+        bin_source="$(dirname "${LABRAT_CONFIGS_DIR}")/bin/starship-preset"
+    else
+        local script_dir
+        script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        bin_source="$(dirname "$(dirname "$script_dir")")/bin/starship-preset"
+    fi
+    
+    if [[ -f "$bin_source" ]]; then
+        cp "$bin_source" "${LABRAT_BIN_DIR}/"
+        chmod +x "${LABRAT_BIN_DIR}/starship-preset"
+        log_success "starship-preset script installed"
     fi
 }
 
