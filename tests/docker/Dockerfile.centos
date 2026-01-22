@@ -1,0 +1,28 @@
+# LabRat Test Container - CentOS Stream 9
+FROM quay.io/centos/centos:stream9
+
+# Install basic dependencies (--allowerasing needed for curl conflict with curl-minimal)
+RUN dnf install -y --allowerasing \
+    sudo \
+    curl \
+    wget \
+    git \
+    ca-certificates \
+    && dnf clean all
+
+# Create test user
+RUN useradd -m -s /bin/bash testuser && \
+    echo "testuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Switch to test user
+USER testuser
+WORKDIR /home/testuser
+
+# Copy LabRat source
+COPY --chown=testuser:testuser . /home/testuser/.labrat
+
+# Set working directory
+WORKDIR /home/testuser/.labrat
+
+# Default command
+CMD ["/bin/bash"]

@@ -1,0 +1,125 @@
+# ============================================================================
+# LabRat Settings Example
+# Copy to ~/.config/labrat/settings.yaml and customize
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# Installation Paths
+# ----------------------------------------------------------------------------
+
+# Where binaries are installed
+prefix: ~/.local
+
+# Where configs are stored
+config_dir: ~/.config
+
+# ----------------------------------------------------------------------------
+# Module Settings
+# ----------------------------------------------------------------------------
+
+modules:
+  # tmux settings
+  tmux:
+    prefix_key: C-b           # Prefix key (C-a or C-b)
+    mouse: true               # Enable mouse support
+    base_index: 1             # Start window numbering at 1
+    
+    # Theme selection (8 themes available)
+    # Options: catppuccin-mocha, catppuccin-latte, dracula, nord,
+    #          tokyo-night, gruvbox, onedark, minimal
+    theme: catppuccin-mocha
+    
+    # Use icons (requires Nerd Fonts)
+    use_icons: true
+    
+    # Optional plugins to enable
+    # Options: logging, copycat, cpu, online-status
+    plugins:
+      - logging
+      - copycat
+      - cpu
+      - online-status
+      
+  # Nerd Fonts settings
+  nerdfonts:
+    enabled: true
+    # Font to install
+    # Options: JetBrainsMono, FiraCode, Hack, CascadiaCode,
+    #          UbuntuMono, SourceCodePro
+    font: JetBrainsMono
+    
+  # zsh settings  
+  zsh:
+    theme: ""                 # Empty to use starship, or "robbyrussell", etc.
+    plugins:                  # Oh My Zsh plugins to enable
+      - git
+      - docker
+      - kubectl
+      - zsh-autosuggestions
+      - zsh-syntax-highlighting
+    set_default_shell: true   # Change default shell to zsh
+    
+  # starship settings
+  starship:
+    show_username: true
+    show_hostname: true       # Always show, not just on SSH
+    
+  # neovim settings
+  neovim:
+    colorscheme: catppuccin-mocha
+    install_method: binary    # binary, package, or appimage
+    
+  # fzf settings
+  fzf:
+    use_fd: true              # Use fd for file finding if available
+    preview_with_bat: true    # Use bat for file preview
+
+# ----------------------------------------------------------------------------
+# Version Pinning
+# ----------------------------------------------------------------------------
+
+# Specify versions for tools
+# Values can be:
+#   - "latest"     : Always get the latest version
+#   - "1.2.3"      : Exact version
+#   - ">=1.2.0"    : Minimum version
+#   - "from:artifactory" : Pull from internal repository
+
+versions:
+  neovim: "latest"
+  tmux: "latest"
+  fzf: "latest"
+  ripgrep: "latest"
+  bat: "latest"
+  lazygit: "latest"
+  starship: "latest"
+  # Example pinned version:
+  # neovim: "0.9.5"
+
+# ----------------------------------------------------------------------------
+# Repository Configuration
+# ----------------------------------------------------------------------------
+
+repositories:
+  # GitHub (default for most tools)
+  github:
+    enabled: true
+    
+  # Artifactory for internal/private tools
+  artifactory:
+    enabled: false
+    base_url: https://artifactory.company.com/artifactory
+    repo_key: tools-generic-local
+    auth_method: token        # token or basic
+    # For token auth, set ARTIFACTORY_TOKEN env var
+    # For basic auth, set ARTIFACTORY_USER and ARTIFACTORY_PASSWORD
+
+# ----------------------------------------------------------------------------
+# Ansible Integration
+# ----------------------------------------------------------------------------
+
+ansible:
+  enabled: false
+  # inventory: /path/to/inventory.ini
+  # extra_vars:
+  #   - key: value

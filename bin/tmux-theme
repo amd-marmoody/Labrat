@@ -1,0 +1,1203 @@
+#!/usr/bin/env bash
+#
+# tmux-theme - Switch between tmux theme plugins
+#
+# Usage:
+#   tmux-theme                 # Interactive selection
+#   tmux-theme <theme-name>    # Set specific theme
+#   tmux-theme --list          # List available themes
+#   tmux-theme --current       # Show current theme
+#
+
+set -euo pipefail
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+# Theme configuration
+THEME_FILE="$HOME/.tmux-theme"
+TMUX_CONF="$HOME/.tmux.conf"
+CURRENT_THEME="catppuccin-mocha"
+
+# Available themes with their TPM plugin repos
+declare -A THEME_PLUGINS=(
+    # Catppuccin flavors
+    ["catppuccin-mocha"]="catppuccin/tmux"
+    ["catppuccin-latte"]="catppuccin/tmux"
+    ["catppuccin-frappe"]="catppuccin/tmux"
+    ["catppuccin-macchiato"]="catppuccin/tmux"
+    # Tokyo Night
+    ["tokyo-night"]="janoamaral/tokyo-night-tmux"
+    # Dracula
+    ["dracula"]="dracula/tmux"
+    # Nord
+    ["nord"]="nordtheme/tmux"
+    # Gruvbox
+    ["gruvbox-dark"]="egel/tmux-gruvbox"
+    ["gruvbox-light"]="egel/tmux-gruvbox"
+    # Rose Pine
+    ["rose-pine"]="rose-pine/tmux"
+    ["rose-pine-moon"]="rose-pine/tmux"
+    ["rose-pine-dawn"]="rose-pine/tmux"
+    # tmux-power
+    ["power-gold"]="wfxr/tmux-power"
+    ["power-everforest"]="wfxr/tmux-power"
+    ["power-moon"]="wfxr/tmux-power"
+    ["power-coral"]="wfxr/tmux-power"
+    ["power-snow"]="wfxr/tmux-power"
+    ["power-forest"]="wfxr/tmux-power"
+    ["power-violet"]="wfxr/tmux-power"
+    ["power-redwine"]="wfxr/tmux-power"
+    # Kanagawa
+    ["kanagawa-wave"]="Nybkox/tmux-kanagawa"
+    ["kanagawa-dragon"]="Nybkox/tmux-kanagawa"
+    ["kanagawa-lotus"]="Nybkox/tmux-kanagawa"
+    # Solarized
+    ["solarized-dark"]="seebi/tmux-colors-solarized"
+    ["solarized-light"]="seebi/tmux-colors-solarized"
+    ["solarized-256"]="seebi/tmux-colors-solarized"
+    # OneDark
+    ["onedark"]="odedlaz/tmux-onedark-theme"
+    # Minimal
+    ["minimal"]="niksingh710/minimal-tmux-status"
+)
+
+# Theme descriptions
+declare -A THEME_DESCRIPTIONS=(
+    # Catppuccin
+    ["catppuccin-mocha"]="Dark warm theme"
+    ["catppuccin-latte"]="Light theme"
+    ["catppuccin-frappe"]="Dark muted theme"
+    ["catppuccin-macchiato"]="Dark blue theme"
+    # Tokyo Night
+    ["tokyo-night"]="VS Code inspired dark theme"
+    # Dracula
+    ["dracula"]="Purple/pink dark theme"
+    # Nord
+    ["nord"]="Arctic blue-grey theme"
+    # Gruvbox
+    ["gruvbox-dark"]="Retro warm dark theme"
+    ["gruvbox-light"]="Retro warm light theme"
+    # Rose Pine
+    ["rose-pine"]="Soho vibes dark theme"
+    ["rose-pine-moon"]="Soho vibes muted dark"
+    ["rose-pine-dawn"]="Soho vibes light theme"
+    # tmux-power
+    ["power-gold"]="Powerline gold theme"
+    ["power-everforest"]="Powerline everforest"
+    ["power-moon"]="Powerline moon theme"
+    ["power-coral"]="Powerline coral theme"
+    ["power-snow"]="Powerline snow (light)"
+    ["power-forest"]="Powerline forest theme"
+    ["power-violet"]="Powerline violet theme"
+    ["power-redwine"]="Powerline redwine theme"
+    # Kanagawa
+    ["kanagawa-wave"]="Japanese art (wave)"
+    ["kanagawa-dragon"]="Japanese art (dragon)"
+    ["kanagawa-lotus"]="Japanese art (lotus)"
+    # Solarized
+    ["solarized-dark"]="Classic Solarized dark"
+    ["solarized-light"]="Classic Solarized light"
+    ["solarized-256"]="Solarized 256 colors"
+    # OneDark
+    ["onedark"]="Atom One Dark theme"
+    # Minimal
+    ["minimal"]="Minimal with prefix indicator"
+)
+
+# Theme dependencies
+declare -A THEME_DEPS=(
+    ["tokyo-night"]="bc jq gawk"
+    ["dracula"]="bc"
+    ["kanagawa-wave"]="bc"
+    ["kanagawa-dragon"]="bc"
+    ["kanagawa-lotus"]="bc"
+)
+
+# Read current theme
+if [[ -f "$THEME_FILE" ]]; then
+    CURRENT_THEME=$(cat "$THEME_FILE")
+fi
+
+show_help() {
+    cat << EOF
+${BOLD}tmux-theme${NC} - LabRat tmux theme switcher
+
+${BOLD}USAGE:${NC}
+    tmux-theme                 Interactive theme selector
+    tmux-theme <theme>         Set a specific theme
+    tmux-theme --list          List available themes
+    tmux-theme --current       Show current theme
+    tmux-theme --restart       Restart tmux with current theme (fixes display issues)
+    tmux-theme --help          Show this help
+
+${BOLD}AVAILABLE THEMES:${NC}
+EOF
+    for theme in catppuccin-mocha catppuccin-latte tokyo-night dracula nord gruvbox-dark; do
+        if [[ "$theme" == "$CURRENT_THEME" ]]; then
+            echo -e "    ${GREEN}●${NC} ${CYAN}$theme${NC} - ${THEME_DESCRIPTIONS[$theme]} ${GREEN}(current)${NC}"
+        else
+            echo -e "    ○ ${CYAN}$theme${NC} - ${THEME_DESCRIPTIONS[$theme]}"
+        fi
+    done
+
+    cat << EOF
+
+${BOLD}EXAMPLES:${NC}
+    tmux-theme tokyo-night     Switch to Tokyo Night theme
+    tmux-theme catppuccin-latte Switch to light Catppuccin theme
+
+EOF
+}
+
+list_themes() {
+    echo -e "${BOLD}Available tmux themes:${NC}\n"
+    
+    echo -e "${BOLD}Catppuccin:${NC}"
+    for theme in catppuccin-mocha catppuccin-latte catppuccin-frappe catppuccin-macchiato; do
+        if [[ "$theme" == "$CURRENT_THEME" ]]; then
+            echo -e "  ${GREEN}●${NC} ${CYAN}${BOLD}$theme${NC} - ${THEME_DESCRIPTIONS[$theme]:-} ${GREEN}(current)${NC}"
+        else
+            echo -e "  ○ $theme - ${THEME_DESCRIPTIONS[$theme]:-}"
+        fi
+    done
+    
+    echo -e "\n${BOLD}Popular:${NC}"
+    for theme in tokyo-night dracula nord gruvbox-dark gruvbox-light; do
+        if [[ "$theme" == "$CURRENT_THEME" ]]; then
+            echo -e "  ${GREEN}●${NC} ${CYAN}${BOLD}$theme${NC} - ${THEME_DESCRIPTIONS[$theme]:-} ${GREEN}(current)${NC}"
+        else
+            echo -e "  ○ $theme - ${THEME_DESCRIPTIONS[$theme]:-}"
+        fi
+    done
+    
+    echo -e "\n${BOLD}Rose Pine:${NC}"
+    for theme in rose-pine rose-pine-moon rose-pine-dawn; do
+        if [[ "$theme" == "$CURRENT_THEME" ]]; then
+            echo -e "  ${GREEN}●${NC} ${CYAN}${BOLD}$theme${NC} - ${THEME_DESCRIPTIONS[$theme]:-} ${GREEN}(current)${NC}"
+        else
+            echo -e "  ○ $theme - ${THEME_DESCRIPTIONS[$theme]:-}"
+        fi
+    done
+    
+    echo -e "\n${BOLD}Powerline:${NC}"
+    for theme in power-gold power-everforest power-moon power-coral power-snow power-forest power-violet power-redwine; do
+        if [[ "$theme" == "$CURRENT_THEME" ]]; then
+            echo -e "  ${GREEN}●${NC} ${CYAN}${BOLD}$theme${NC} - ${THEME_DESCRIPTIONS[$theme]:-} ${GREEN}(current)${NC}"
+        else
+            echo -e "  ○ $theme - ${THEME_DESCRIPTIONS[$theme]:-}"
+        fi
+    done
+    
+    echo -e "\n${BOLD}Kanagawa:${NC}"
+    for theme in kanagawa-wave kanagawa-dragon kanagawa-lotus; do
+        if [[ "$theme" == "$CURRENT_THEME" ]]; then
+            echo -e "  ${GREEN}●${NC} ${CYAN}${BOLD}$theme${NC} - ${THEME_DESCRIPTIONS[$theme]:-} ${GREEN}(current)${NC}"
+        else
+            echo -e "  ○ $theme - ${THEME_DESCRIPTIONS[$theme]:-}"
+        fi
+    done
+    
+    echo -e "\n${BOLD}Classic:${NC}"
+    for theme in solarized-dark solarized-light solarized-256 onedark; do
+        if [[ "$theme" == "$CURRENT_THEME" ]]; then
+            echo -e "  ${GREEN}●${NC} ${CYAN}${BOLD}$theme${NC} - ${THEME_DESCRIPTIONS[$theme]:-} ${GREEN}(current)${NC}"
+        else
+            echo -e "  ○ $theme - ${THEME_DESCRIPTIONS[$theme]:-}"
+        fi
+    done
+    
+    echo -e "\n${BOLD}Minimal:${NC}"
+    for theme in minimal; do
+        if [[ "$theme" == "$CURRENT_THEME" ]]; then
+            echo -e "  ${GREEN}●${NC} ${CYAN}${BOLD}$theme${NC} - ${THEME_DESCRIPTIONS[$theme]:-} ${GREEN}(current)${NC}"
+        else
+            echo -e "  ○ $theme - ${THEME_DESCRIPTIONS[$theme]:-}"
+        fi
+    done
+    echo ""
+}
+
+show_current() {
+    echo -e "Current theme: ${CYAN}${BOLD}$CURRENT_THEME${NC}"
+    if [[ -n "${THEME_DESCRIPTIONS[$CURRENT_THEME]:-}" ]]; then
+        echo -e "Description: ${THEME_DESCRIPTIONS[$CURRENT_THEME]}"
+    fi
+}
+
+generate_theme_settings() {
+    local theme="$1"
+    
+    case "$theme" in
+        catppuccin-mocha|catppuccin-latte|catppuccin-frappe|catppuccin-macchiato)
+            local flavor="${theme#catppuccin-}"
+            cat << EOF
+# Catppuccin Theme Configuration
+# Flavors: latte, frappe, macchiato, mocha
+set -g @catppuccin_flavor "$flavor"
+
+# Window styling: basic, rounded, slanted, custom, none
+set -g @catppuccin_window_status_style "rounded"
+set -g @catppuccin_window_number_position "left"
+set -g @catppuccin_window_text " #W"
+set -g @catppuccin_window_number "#I"
+set -g @catppuccin_window_current_text " #W"
+set -g @catppuccin_window_current_number "#I"
+
+# Window flags: none, icon, or text (use "text" for better compatibility)
+set -g @catppuccin_window_flags "text"
+set -g @catppuccin_window_flags_icon_last "-"
+set -g @catppuccin_window_flags_icon_current "*"
+set -g @catppuccin_window_flags_icon_zoom "Z"
+set -g @catppuccin_window_flags_icon_mark "M"
+
+# Pane styling
+set -g @catppuccin_pane_status_enabled "no"
+set -g @catppuccin_pane_border_status "off"
+
+# Status line styling - use simple separators for compatibility
+set -g @catppuccin_status_left_separator ""
+set -g @catppuccin_status_middle_separator ""
+set -g @catppuccin_status_right_separator ""
+set -g @catppuccin_status_connect_separator "yes"
+set -g @catppuccin_status_fill "icon"
+EOF
+            ;;
+        tokyo-night)
+            cat << EOF
+# Tokyo Night Theme Configuration
+# Theme variant: night (default), storm, day
+set -g @tokyo-night-tmux_theme night
+set -g @tokyo-night-tmux_transparent 0
+
+# Number styles: digital, hsquare, dsquare, roman, super, sub
+set -g @tokyo-night-tmux_window_id_style digital
+set -g @tokyo-night-tmux_pane_id_style hsquare
+set -g @tokyo-night-tmux_zoom_id_style dsquare
+
+# Window icons
+set -g @tokyo-night-tmux_terminal_icon 
+set -g @tokyo-night-tmux_active_terminal_icon 
+set -g @tokyo-night-tmux_window_tidy_icons 0
+
+# Date/Time Widget
+set -g @tokyo-night-tmux_show_datetime 1
+set -g @tokyo-night-tmux_date_format MYD
+set -g @tokyo-night-tmux_time_format 24H
+
+# Path Widget
+set -g @tokyo-night-tmux_show_path 1
+set -g @tokyo-night-tmux_path_format relative
+
+# Git Widget (requires gh or glab CLI)
+set -g @tokyo-night-tmux_show_git 1
+
+# Battery Widget
+set -g @tokyo-night-tmux_show_battery_widget 1
+set -g @tokyo-night-tmux_battery_name "BAT1"
+set -g @tokyo-night-tmux_battery_low_threshold 21
+
+# Netspeed Widget (disabled by default - resource intensive)
+set -g @tokyo-night-tmux_show_netspeed 0
+set -g @tokyo-night-tmux_netspeed_iface "auto"
+set -g @tokyo-night-tmux_netspeed_showip 0
+set -g @tokyo-night-tmux_netspeed_refresh 1
+
+# Music Widget (disabled by default - requires playerctl/cmus)
+set -g @tokyo-night-tmux_show_music 0
+EOF
+            ;;
+        dracula)
+            cat << EOF
+# Dracula Theme Configuration
+# Plugins: battery, cpu-usage, git, gpu-usage, ram-usage, network, weather, time, etc.
+set -g @dracula-plugins "git battery cpu-usage ram-usage time"
+
+# Status bar options
+set -g @dracula-show-powerline true
+set -g @dracula-show-flags true
+set -g @dracula-show-left-icon session
+set -g @dracula-border-contrast true
+set -g @dracula-show-empty-plugins false
+
+# Powerline customization
+set -g @dracula-show-edge-icons true
+set -g @dracula-show-left-sep 
+set -g @dracula-show-right-sep 
+
+# Time widget
+set -g @dracula-military-time true
+set -g @dracula-show-timezone false
+set -g @dracula-day-month true
+
+# Git widget
+set -g @dracula-git-show-current-symbol ✓
+set -g @dracula-git-show-diff-symbol !
+set -g @dracula-git-no-repo-message ""
+set -g @dracula-git-no-untracked-files true
+
+# Battery widget
+set -g @dracula-battery-label "🔋"
+
+# CPU widget
+set -g @dracula-cpu-usage-label "CPU"
+set -g @dracula-cpu-display-load true
+
+# RAM widget  
+set -g @dracula-ram-usage-label "RAM"
+
+# Refresh rate
+set -g @dracula-refresh-rate 5
+EOF
+            ;;
+        nord)
+            cat << EOF
+# Nord Theme Configuration
+# Arctic, bluish color scheme with clean aesthetics
+
+# Show/hide status content (0 to hide, default shows)
+set -g @nord_tmux_show_status_content 1
+
+# Use non-patched fonts (1 = no Nerd Fonts needed)
+set -g @nord_tmux_no_patched_font 0
+
+# Custom date format (default: %Y-%m-%d)
+set -g @nord_tmux_date_format "%Y-%m-%d"
+EOF
+            ;;
+        gruvbox-dark|gruvbox-light)
+            local variant="${theme#gruvbox-}"
+            cat << EOF
+# Gruvbox Theme Configuration
+# Variants: dark, dark256, light, light256
+set -g @tmux-gruvbox "$variant"
+
+# Transparent statusbar (true/false)
+set -g @tmux-gruvbox-statusbar-alpha 'false'
+
+# Left status: session name by default
+set -g @tmux-gruvbox-left-status-a '#S'
+
+# Right status sections (x=date, y=time, z=hostname)
+set -g @tmux-gruvbox-right-status-x '%Y-%m-%d'
+set -g @tmux-gruvbox-right-status-y '%H:%M'
+set -g @tmux-gruvbox-right-status-z '#h'
+EOF
+            ;;
+        rose-pine|rose-pine-moon|rose-pine-dawn)
+            local variant="${theme#rose-pine}"
+            variant="${variant#-}"
+            [[ -z "$variant" ]] && variant="main"
+            cat << EOF
+# Rose Pine Theme Configuration
+set -g @rose_pine_variant '$variant'
+set -g @rose_pine_host 'on'
+set -g @rose_pine_user 'on'
+set -g @rose_pine_directory 'on'
+set -g @rose_pine_date_time '%H:%M'
+set -g @rose_pine_bar_bg_disable 'off'
+set -g @rose_pine_show_pane_directory 'on'
+EOF
+            ;;
+        power-gold|power-everforest|power-moon|power-coral|power-snow|power-forest|power-violet|power-redwine)
+            local variant="${theme#power-}"
+            cat << EOF
+# tmux-power Theme Configuration
+set -g @tmux_power_theme '$variant'
+set -g @tmux_power_date_format '%Y-%m-%d'
+set -g @tmux_power_time_format '%H:%M'
+set -g @tmux_power_show_user true
+set -g @tmux_power_show_host true
+set -g @tmux_power_show_session true
+EOF
+            ;;
+        kanagawa-wave|kanagawa-dragon|kanagawa-lotus)
+            local variant="${theme#kanagawa-}"
+            cat << EOF
+# Kanagawa Theme Configuration
+set -g @kanagawa-theme '$variant'
+set -g @kanagawa-plugins "git battery cpu-usage ram-usage time"
+set -g @kanagawa-show-powerline true
+set -g @kanagawa-show-flags true
+set -g @kanagawa-show-left-icon session
+set -g @kanagawa-military-time true
+EOF
+            ;;
+        solarized-dark|solarized-light|solarized-256)
+            local variant="${theme#solarized-}"
+            cat << EOF
+# Solarized Theme Configuration
+set -g @colors-solarized '$variant'
+EOF
+            ;;
+        onedark)
+            cat << EOF
+# OneDark Theme Configuration
+set -g @onedark_widgets ""
+set -g @onedark_time_format "%H:%M"
+set -g @onedark_date_format "%Y-%m-%d"
+EOF
+            ;;
+        minimal)
+            cat << EOF
+# Minimal Theme Configuration
+set -g @minimal-tmux-fg "#000000"
+set -g @minimal-tmux-bg "#698DDA"
+set -g @minimal-tmux-status "bottom"
+set -g @minimal-tmux-justify "centre"
+set -g @minimal-tmux-indicator true
+set -g @minimal-tmux-indicator-str "  tmux  "
+set -g @minimal-tmux-right true
+set -g @minimal-tmux-left true
+set -g @minimal-tmux-use-arrow true
+EOF
+            ;;
+        *)
+            echo "# Unknown theme"
+            ;;
+    esac
+}
+
+generate_tmux_config() {
+    local theme="$1"
+    local theme_plugin="${THEME_PLUGINS[$theme]}"
+    local theme_settings
+    theme_settings=$(generate_theme_settings "$theme")
+    
+    cat << TMUX_CONFIG
+# ============================================================================
+# LabRat tmux Configuration
+# Your trusty environment for every test cage 🐀
+# Theme: $theme
+# Generated by tmux-theme script
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# Reset all style options (ensures clean state when switching themes)
+# NOTE: For complete theme change, restart tmux: tmux kill-server && tmux
+# ----------------------------------------------------------------------------
+
+# Reset status bar
+set -g status-left ""
+set -g status-right ""
+set -g status-style "default"
+set -g status-left-style "default"
+set -g status-right-style "default"
+
+# Reset window status
+set -g window-status-format "#I:#W"
+set -g window-status-current-format "#I:#W"
+set -g window-status-style "default"
+set -g window-status-current-style "default"
+set -g window-status-last-style "default"
+set -g window-status-activity-style "default"
+set -g window-status-bell-style "default"
+
+# Reset pane borders
+set -g pane-border-style "default"
+set -g pane-active-border-style "default"
+
+# Reset message styles
+set -g message-style "default"
+set -g message-command-style "default"
+
+# Reset mode style (copy mode, etc.)
+set -g mode-style "default"
+
+# ----------------------------------------------------------------------------
+# General Settings
+# ----------------------------------------------------------------------------
+
+set -g mouse on
+set -g base-index 1
+setw -g pane-base-index 1
+set -g renumber-windows on
+set -g history-limit 50000
+set -g display-time 4000
+set -g status-interval 5
+set -g focus-events on
+set -s escape-time 10
+set -g default-terminal "tmux-256color"
+set -ga terminal-overrides ",*256col*:Tc"
+setw -g aggressive-resize on
+set -g status-position bottom
+set -g status-left-length 100
+set -g status-right-length 150
+
+# ----------------------------------------------------------------------------
+# Key Bindings
+# ----------------------------------------------------------------------------
+
+bind r source-file ~/.tmux.conf \; display-message "Config reloaded!"
+bind | split-window -h -c "#{pane_current_path}"
+bind - split-window -v -c "#{pane_current_path}"
+bind '"' split-window -v -c "#{pane_current_path}"
+bind % split-window -h -c "#{pane_current_path}"
+bind c new-window -c "#{pane_current_path}"
+
+# Vim-style pane navigation
+bind h select-pane -L
+bind j select-pane -D
+bind k select-pane -U
+bind l select-pane -R
+
+# Alt + arrow keys to switch panes
+bind -n M-Left select-pane -L
+bind -n M-Right select-pane -R
+bind -n M-Up select-pane -U
+bind -n M-Down select-pane -D
+
+# Pane resizing
+bind -r C-h resize-pane -L 5
+bind -r C-j resize-pane -D 5
+bind -r C-k resize-pane -U 5
+bind -r C-l resize-pane -R 5
+
+# Quick window switching
+bind -n M-1 select-window -t 1
+bind -n M-2 select-window -t 2
+bind -n M-3 select-window -t 3
+bind -n M-4 select-window -t 4
+bind -n M-5 select-window -t 5
+bind -n M-6 select-window -t 6
+bind -n M-7 select-window -t 7
+bind -n M-8 select-window -t 8
+bind -n M-9 select-window -t 9
+
+# Scratchpad popup (tmux 3.2+)
+bind -n M-g display-popup -E -w 80% -h 80% "tmux new-session -A -s scratch"
+bind -n M-t display-popup -E -w 80% -h 80%
+
+# Session management
+bind S command-prompt -p "New session name:" "new-session -s '%%'"
+bind K confirm-before -p "Kill session #S? (y/n)" kill-session
+
+# Theme switcher
+bind T run-shell "~/.local/bin/tmux-theme"
+
+# ----------------------------------------------------------------------------
+# Copy Mode (Vi-style)
+# ----------------------------------------------------------------------------
+
+setw -g mode-keys vi
+bind [ copy-mode
+bind -T copy-mode-vi v send-keys -X begin-selection
+bind -T copy-mode-vi y send-keys -X copy-selection-and-cancel
+bind -T copy-mode-vi r send-keys -X rectangle-toggle
+bind -T copy-mode-vi y send-keys -X copy-pipe-and-cancel "xclip -selection clipboard -i 2>/dev/null || xsel -ib"
+bind -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel "xclip -selection clipboard -i 2>/dev/null || xsel -ib"
+bind p paste-buffer
+
+# ----------------------------------------------------------------------------
+# Plugins (managed by TPM)
+# ----------------------------------------------------------------------------
+
+# Core plugins
+set -g @plugin 'tmux-plugins/tpm'
+set -g @plugin 'tmux-plugins/tmux-sensible'
+set -g @plugin 'tmux-plugins/tmux-resurrect'
+set -g @plugin 'tmux-plugins/tmux-continuum'
+set -g @plugin 'tmux-plugins/tmux-yank'
+set -g @plugin 'tmux-plugins/tmux-pain-control'
+
+# Navigation & Copy plugins
+set -g @plugin 'Morantron/tmux-fingers'
+set -g @plugin 'wfxr/tmux-fzf-url'
+set -g @plugin 'tmux-plugins/tmux-open'
+set -g @plugin 'tmux-plugins/tmux-copycat'
+set -g @plugin 'christoomey/vim-tmux-navigator'
+
+# Search & Productivity plugins
+set -g @plugin 'laktak/extrakto'
+set -g @plugin 'roosta/tmux-fuzzback'
+set -g @plugin 'tmux-plugins/tmux-prefix-highlight'
+
+# Session management
+set -g @plugin 'omerxx/tmux-sessionx'
+
+# Menus (enhanced right-click)
+set -g @plugin 'jaclu/tmux-menus'
+
+# ----------------------------------------------------------------------------
+# Plugin Settings
+# ----------------------------------------------------------------------------
+
+# Resurrect & Continuum
+set -g @resurrect-capture-pane-contents 'on'
+set -g @resurrect-strategy-vim 'session'
+set -g @resurrect-strategy-nvim 'session'
+set -g @continuum-restore 'on'
+set -g @continuum-save-interval '15'
+
+# Yank
+set -g @yank_selection_mouse 'clipboard'
+
+# Fingers (vimium-like hint copying)
+set -g @fingers-key F
+set -g @fingers-jump-key J
+set -g @fingers-pattern-0 '[a-f0-9]{40}'
+set -g @fingers-pattern-1 '[a-f0-9]{7,8}'
+set -g @fingers-pattern-2 '([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)'
+set -g @fingers-compact-hints 1
+set -g @fingers-hint-style 'fg=yellow,bold'
+set -g @fingers-highlight-style 'fg=yellow,bold,underscore'
+
+# FZF URL (open URLs without mouse)
+set -g @fzf-url-bind 'u'
+set -g @fzf-url-open 'xdg-open'
+set -g @fzf-url-history-limit '2000'
+
+# Open (quick open files/URLs)
+set -g @open-S 'https://www.google.com/search?q='
+set -g @open-editor 'nvim'
+
+# Extrakto (clipboard copy + completions)
+set -g @extrakto_key 'tab'
+set -g @extrakto_split_direction 'p'
+set -g @extrakto_split_size '15'
+set -g @extrakto_grab_area 'recent'
+set -g @extrakto_clip_tool_run 'tmux_osc52'
+set -g @extrakto_copy_key 'ctrl-c'
+set -g @extrakto_insert_key 'enter'
+
+# Fuzzback (search scrollback with fzf)
+set -g @fuzzback-bind /
+set -g @fuzzback-popup 1
+set -g @fuzzback-popup-size '80%'
+set -g @fuzzback-finder-layout 'reverse'
+
+# Prefix Highlight (show when prefix is pressed)
+set -g @prefix_highlight_show_copy_mode 'on'
+set -g @prefix_highlight_show_sync_mode 'on'
+set -g @prefix_highlight_prefix_prompt 'Wait'
+set -g @prefix_highlight_copy_prompt 'Copy'
+set -g @prefix_highlight_sync_prompt 'Sync'
+
+# SessionX (session management with fzf)
+set -g @sessionx-bind 'o'
+set -g @sessionx-window-mode 'off'
+set -g @sessionx-zoxide-mode 'on'
+set -g @sessionx-filter-current 'false'
+set -g @sessionx-preview-enabled 'true'
+
+# Vim-tmux-navigator
+set -g @vim_navigator_mapping_left 'C-h'
+set -g @vim_navigator_mapping_right 'C-l'
+set -g @vim_navigator_mapping_up 'C-k'
+set -g @vim_navigator_mapping_down 'C-j'
+
+# Menus (enhanced right-click context menu)
+set -g @menus_trigger 'MouseDown3Pane'
+set -g @menus_location_x 'M'
+set -g @menus_location_y 'M'
+
+# ----------------------------------------------------------------------------
+# Custom Status Bar Elements (IP display, etc.)
+# ----------------------------------------------------------------------------
+
+# Get primary IP address (works on most Linux systems)
+# This creates a custom status segment showing the IP
+set -g @ip_address "#(hostname -I 2>/dev/null | awk '{print \$1}' || ip route get 1 2>/dev/null | awk '{print \$7}' | head -1 || echo 'N/A')"
+
+# ----------------------------------------------------------------------------
+# Right-Click Context Menu (custom pane menu)
+# ----------------------------------------------------------------------------
+
+# Unbind default right-click (we'll use tmux-menus instead)
+# But also add a custom pane menu on Shift+Right-click
+bind -n S-MouseDown3Pane display-menu -T "#[align=centre]Pane Menu" -x M -y M \
+  "Split Horizontal"    h "split-window -h -c '#{pane_current_path}'" \
+  "Split Vertical"      v "split-window -v -c '#{pane_current_path}'" \
+  "" \
+  "Swap Up"             u "swap-pane -U" \
+  "Swap Down"           d "swap-pane -D" \
+  "Swap Left"           l "swap-pane -s '{left-of}'" \
+  "Swap Right"          r "swap-pane -s '{right-of}'" \
+  "" \
+  "Zoom/Unzoom"         z "resize-pane -Z" \
+  "Mark Pane"           m "select-pane -m" \
+  "Break to Window"     b "break-pane" \
+  "Join from..."        j "choose-window 'join-pane -s \"%%\"'" \
+  "" \
+  "Respawn (restart)"   R "respawn-pane -k" \
+  "#{?pane_synchronized,Unsync,Sync} Panes" S "setw synchronize-panes" \
+  "" \
+  "Close Pane"          x "kill-pane"
+
+# Window context menu (on title bar / window list right-click)
+bind -n MouseDown3Status display-menu -T "#[align=centre]Window Menu" -x M -y S \
+  "New Window"          n "new-window -c '#{pane_current_path}'" \
+  "Rename Window"       r "command-prompt -I '#W' 'rename-window \"%%\"'" \
+  "" \
+  "Move Left"           l "swap-window -t -1" \
+  "Move Right"          R "swap-window -t +1" \
+  "" \
+  "Kill Window"         x "kill-window" \
+  "" \
+  "Session Menu"        s "choose-tree -Zs"
+
+# ----------------------------------------------------------------------------
+# Theme: $theme
+# ----------------------------------------------------------------------------
+
+set -g @plugin '$theme_plugin'
+$theme_settings
+
+# ----------------------------------------------------------------------------
+# Initialize TPM (keep at bottom)
+# ----------------------------------------------------------------------------
+
+run '~/.tmux/plugins/tpm/tpm'
+TMUX_CONFIG
+}
+
+install_nerdfonts() {
+    local fonts_dir="$HOME/.local/share/fonts/NerdFonts"
+    
+    # Check if already installed
+    if [[ -d "$fonts_dir" ]] && [[ -n "$(ls -A "$fonts_dir" 2>/dev/null)" ]]; then
+        echo -e "  ${GREEN}✓${NC} Nerd Fonts already installed"
+        return 0
+    fi
+    
+    echo -e "${YELLOW}Installing Nerd Fonts (required for theme icons)...${NC}"
+    
+    local font_name="JetBrainsMono"
+    local version="v3.1.1"
+    local download_url="https://github.com/ryanoasis/nerd-fonts/releases/download/${version}/${font_name}.zip"
+    local cache_dir="$HOME/.cache/labrat/fonts"
+    local zip_file="${cache_dir}/${font_name}.zip"
+    
+    mkdir -p "$fonts_dir" "$cache_dir"
+    
+    echo -e "  Downloading ${font_name} Nerd Font..."
+    if curl -fsSL -o "$zip_file" "$download_url" 2>/dev/null; then
+        echo -e "  Extracting font files..."
+        unzip -o -q "$zip_file" -d "$fonts_dir" '*.ttf' 2>/dev/null || true
+        rm -f "$zip_file"
+        
+        # Update font cache
+        fc-cache -f "$HOME/.local/share/fonts" 2>/dev/null || true
+        
+        local font_count
+        font_count=$(ls "$fonts_dir"/*.ttf 2>/dev/null | wc -l)
+        echo -e "  ${GREEN}✓${NC} Installed $font_count font files"
+        echo ""
+        echo -e "${CYAN}Configure your terminal to use:${NC} JetBrainsMono Nerd Font"
+    else
+        echo -e "  ${YELLOW}!${NC} Failed to download Nerd Fonts"
+        echo -e "  Icons may not display correctly"
+    fi
+}
+
+install_noto_symbols() {
+    local theme="$1"
+    
+    # Only needed for tokyo-night
+    if [[ "$theme" != "tokyo-night" ]]; then
+        return 0
+    fi
+    
+    # Check if already installed
+    if fc-list 2>/dev/null | grep -qi "Noto Sans Symbols 2"; then
+        echo -e "  ${GREEN}✓${NC} Noto Sans Symbols 2 already installed"
+        return 0
+    fi
+    
+    echo -e "${YELLOW}Installing Noto Sans Symbols 2 (for segmented digits)...${NC}"
+    
+    local fonts_dir="$HOME/.local/share/fonts"
+    mkdir -p "$fonts_dir"
+    
+    # Try package manager first
+    local pkg_cmd=""
+    if command -v apt-get &>/dev/null; then
+        echo -e "  Installing via apt..."
+        sudo apt-get install -y fonts-noto-core 2>/dev/null && {
+            echo -e "  ${GREEN}✓${NC} Noto fonts installed"
+            return 0
+        }
+    fi
+    
+    # Fallback: download directly
+    local download_url="https://github.com/googlefonts/noto-fonts/raw/main/hinted/ttf/NotoSansSymbols2/NotoSansSymbols2-Regular.ttf"
+    local font_file="$fonts_dir/NotoSansSymbols2-Regular.ttf"
+    
+    if curl -fsSL -o "$font_file" "$download_url" 2>/dev/null; then
+        fc-cache -f "$fonts_dir" 2>/dev/null || true
+        echo -e "  ${GREEN}✓${NC} Noto Sans Symbols 2 installed"
+    else
+        echo -e "  ${YELLOW}!${NC} Could not install Noto Sans Symbols 2"
+        echo -e "  Segmented digits may not display correctly"
+    fi
+}
+
+install_theme_deps() {
+    local theme="$1"
+    local deps="${THEME_DEPS[$theme]:-}"
+    
+    # Always ensure Nerd Fonts are installed
+    install_nerdfonts
+    
+    # Install Noto Sans Symbols 2 for tokyo-night (segmented digits)
+    install_noto_symbols "$theme"
+    
+    if [[ -z "$deps" ]]; then
+        return 0
+    fi
+    
+    echo -e "${YELLOW}Installing theme dependencies...${NC}"
+    
+    # Detect package manager
+    local pkg_cmd=""
+    if command -v apt-get &>/dev/null; then
+        pkg_cmd="sudo apt-get install -y"
+    elif command -v dnf &>/dev/null; then
+        pkg_cmd="sudo dnf install -y"
+    elif command -v yum &>/dev/null; then
+        pkg_cmd="sudo yum install -y"
+    elif command -v pacman &>/dev/null; then
+        pkg_cmd="sudo pacman -S --noconfirm"
+    elif command -v apk &>/dev/null; then
+        pkg_cmd="sudo apk add"
+    else
+        echo -e "${YELLOW}!${NC} Could not detect package manager"
+        echo -e "  Please install manually: $deps"
+        return 0
+    fi
+    
+    for dep in $deps; do
+        if ! command -v "$dep" &>/dev/null; then
+            echo -e "  Installing $dep..."
+            $pkg_cmd "$dep" 2>/dev/null || echo -e "${YELLOW}!${NC} Failed to install $dep"
+        else
+            echo -e "  ${GREEN}✓${NC} $dep already installed"
+        fi
+    done
+    
+    # Theme-specific notes and optional tools check
+    case "$theme" in
+        tokyo-night)
+            echo ""
+            echo -e "${CYAN}Tokyo Night status:${NC}"
+            echo -e "  • Nerd Fonts v3+: ${GREEN}✓${NC}"
+            echo -e "  • Noto Sans Symbols 2: $(fc-list 2>/dev/null | grep -qi 'Noto Sans Symbols 2' && echo -e "${GREEN}✓${NC}" || echo -e "${YELLOW}!${NC}")"
+            echo -e "  • bc, jq, gawk: $(command -v bc &>/dev/null && command -v jq &>/dev/null && command -v gawk &>/dev/null && echo -e "${GREEN}✓${NC}" || echo -e "${YELLOW}partial${NC}")"
+            
+            # Optional tools
+            if command -v gh &>/dev/null; then
+                echo -e "  • GitHub CLI (gh): ${GREEN}✓${NC} (git widget enabled)"
+            else
+                echo -e "  • GitHub CLI (gh): ${YELLOW}not installed${NC} (basic git info only)"
+            fi
+            
+            if command -v playerctl &>/dev/null; then
+                echo -e "  • playerctl: ${GREEN}✓${NC} (music widget enabled)"
+            else
+                echo -e "  • playerctl: ${YELLOW}not installed${NC} (music widget disabled)"
+            fi
+            ;;
+    esac
+}
+
+# Theme plugin directory names that conflict (multiple themes use same name)
+# Format: "directory_name:repo1,repo2,repo3"
+CONFLICTING_THEME_DIRS=(
+    "tmux:catppuccin/tmux,dracula/tmux,rose-pine/tmux,nordtheme/tmux"
+    "tmux-gruvbox:egel/tmux-gruvbox"
+    "tokyo-night-tmux:janoamaral/tokyo-night-tmux"
+    "tmux-colors-solarized:seebi/tmux-colors-solarized"
+    "tmux-onedark-theme:odedlaz/tmux-onedark-theme"
+    "minimal-tmux-status:niksingh710/minimal-tmux-status"
+    "tmux-power:wfxr/tmux-power"
+    "tmux-kanagawa:Nybkox/tmux-kanagawa"
+)
+
+get_plugin_dir_name() {
+    local plugin_repo="$1"
+    # Extract directory name from repo (last part after /)
+    echo "${plugin_repo##*/}"
+}
+
+remove_conflicting_theme_plugins() {
+    local new_theme_plugin="$1"
+    local plugins_dir="$HOME/.tmux/plugins"
+    
+    # Get the directory name for the new theme
+    local new_dir_name
+    new_dir_name=$(get_plugin_dir_name "$new_theme_plugin")
+    
+    echo -e "${YELLOW}Cleaning up old theme plugins...${NC}"
+    
+    # Remove the directory if it exists and belongs to a different repo
+    if [[ -d "$plugins_dir/$new_dir_name" ]]; then
+        local current_remote=""
+        if [[ -d "$plugins_dir/$new_dir_name/.git" ]]; then
+            current_remote=$(cd "$plugins_dir/$new_dir_name" && git remote get-url origin 2>/dev/null || echo "")
+        fi
+        
+        # Check if current remote matches the new theme
+        if [[ -n "$current_remote" ]] && [[ "$current_remote" != *"$new_theme_plugin"* ]]; then
+            echo -e "  Removing old theme plugin: $new_dir_name (was: ${current_remote##*/})"
+            rm -rf "$plugins_dir/$new_dir_name"
+        fi
+    fi
+    
+    # Also clean up other theme plugin directories that might conflict
+    local theme_dirs=("tmux" "tmux-gruvbox" "tokyo-night-tmux" "tmux-colors-solarized" 
+                      "tmux-onedark-theme" "minimal-tmux-status" "tmux-power" "tmux-kanagawa")
+    
+    for dir in "${theme_dirs[@]}"; do
+        if [[ "$dir" != "$new_dir_name" ]] && [[ -d "$plugins_dir/$dir" ]]; then
+            # Check if this is a theme plugin (not a utility plugin)
+            if [[ -d "$plugins_dir/$dir/.git" ]]; then
+                local remote_url
+                remote_url=$(cd "$plugins_dir/$dir" && git remote get-url origin 2>/dev/null || echo "")
+                
+                # Check if it's a known theme plugin
+                if [[ "$remote_url" == *"catppuccin/tmux"* ]] || \
+                   [[ "$remote_url" == *"dracula/tmux"* ]] || \
+                   [[ "$remote_url" == *"rose-pine/tmux"* ]] || \
+                   [[ "$remote_url" == *"nordtheme/tmux"* ]] || \
+                   [[ "$remote_url" == *"egel/tmux-gruvbox"* ]] || \
+                   [[ "$remote_url" == *"janoamaral/tokyo-night"* ]] || \
+                   [[ "$remote_url" == *"seebi/tmux-colors"* ]] || \
+                   [[ "$remote_url" == *"odedlaz/tmux-onedark"* ]] || \
+                   [[ "$remote_url" == *"niksingh710/minimal"* ]] || \
+                   [[ "$remote_url" == *"wfxr/tmux-power"* ]] || \
+                   [[ "$remote_url" == *"Nybkox/tmux-kanagawa"* ]]; then
+                    echo -e "  Removing unused theme: $dir"
+                    rm -rf "$plugins_dir/$dir"
+                fi
+            fi
+        fi
+    done
+}
+
+set_theme() {
+    local theme="$1"
+    
+    # Validate theme
+    if [[ -z "${THEME_PLUGINS[$theme]:-}" ]]; then
+        echo -e "${RED}Error: Unknown theme '$theme'${NC}" >&2
+        echo "Available themes:"
+        list_themes
+        return 1
+    fi
+    
+    # Install dependencies first
+    install_theme_deps "$theme"
+    echo ""
+    
+    # Backup existing config
+    if [[ -f "$TMUX_CONF" ]]; then
+        cp "$TMUX_CONF" "$TMUX_CONF.backup"
+    fi
+    
+    # Save theme preference
+    echo "$theme" > "$THEME_FILE"
+    
+    # Get the theme plugin repo
+    local theme_plugin="${THEME_PLUGINS[$theme]}"
+    
+    # Remove conflicting theme plugin directories
+    remove_conflicting_theme_plugins "$theme_plugin"
+    
+    # Generate new config
+    generate_tmux_config "$theme" > "$TMUX_CONF"
+    
+    echo -e "${GREEN}✓${NC} Theme set to: ${CYAN}${BOLD}$theme${NC}"
+    echo -e "  Config regenerated: $TMUX_CONF"
+    echo ""
+    
+    # Install TPM plugin for the theme
+    echo -e "${YELLOW}Installing theme plugin...${NC}"
+    if [[ -x "$HOME/.tmux/plugins/tpm/scripts/install_plugins.sh" ]]; then
+        "$HOME/.tmux/plugins/tpm/scripts/install_plugins.sh" 2>/dev/null || true
+        echo -e "${GREEN}✓${NC} Theme plugin installed"
+    else
+        echo -e "${YELLOW}!${NC} TPM not found - press Prefix + I in tmux to install plugins"
+    fi
+    
+    # Reload tmux if in a session
+    if [[ -n "${TMUX:-}" ]]; then
+        echo ""
+        echo -e "${YELLOW}Reloading tmux config...${NC}"
+        tmux source-file "$TMUX_CONF" 2>/dev/null || true
+        echo -e "${GREEN}✓${NC} Config reloaded!"
+        echo ""
+        echo -e "${BOLD}Note:${NC} Background colors may not update until tmux is restarted."
+        echo ""
+        read -rp "Restart tmux now for complete theme change? [y/N]: " restart_choice
+        
+        if [[ "$restart_choice" =~ ^[Yy]$ ]]; then
+            echo -e "${CYAN}Restarting tmux...${NC}"
+            echo -e "Run 'tmux' to start a new session after server stops."
+            sleep 1
+            tmux kill-server
+        else
+            echo ""
+            echo -e "To manually restart later: ${BOLD}tmux kill-server && tmux${NC}"
+        fi
+    else
+        echo ""
+        echo -e "Start tmux to see the new theme:"
+        echo -e "  ${BOLD}tmux${NC}"
+    fi
+}
+
+interactive_select() {
+    echo -e "${BOLD}Select a tmux theme:${NC}\n"
+    
+    # All themes organized by category
+    local -a all_themes=(
+        # Catppuccin
+        catppuccin-mocha catppuccin-latte catppuccin-frappe catppuccin-macchiato
+        # Popular
+        tokyo-night dracula nord gruvbox-dark gruvbox-light
+        # Rose Pine
+        rose-pine rose-pine-moon rose-pine-dawn
+        # Powerline
+        power-gold power-everforest power-moon power-coral power-snow power-forest power-violet power-redwine
+        # Kanagawa
+        kanagawa-wave kanagawa-dragon kanagawa-lotus
+        # Classic
+        solarized-dark solarized-light solarized-256 onedark
+        # Minimal
+        minimal
+    )
+    
+    local i=1
+    local current_category=""
+    
+    # Display with categories
+    echo -e "${BOLD}Catppuccin:${NC}"
+    for idx in 0 1 2 3; do
+        local theme="${all_themes[$idx]}"
+        if [[ "$theme" == "$CURRENT_THEME" ]]; then
+            echo -e "  ${GREEN}[$((idx+1))]${NC} ${CYAN}${BOLD}$theme${NC} - ${THEME_DESCRIPTIONS[$theme]:-} ${GREEN}(current)${NC}"
+        else
+            echo -e "  [$((idx+1))] $theme - ${THEME_DESCRIPTIONS[$theme]:-}"
+        fi
+    done
+    
+    echo -e "\n${BOLD}Popular:${NC}"
+    for idx in 4 5 6 7 8; do
+        local theme="${all_themes[$idx]}"
+        if [[ "$theme" == "$CURRENT_THEME" ]]; then
+            echo -e "  ${GREEN}[$((idx+1))]${NC} ${CYAN}${BOLD}$theme${NC} - ${THEME_DESCRIPTIONS[$theme]:-} ${GREEN}(current)${NC}"
+        else
+            echo -e "  [$((idx+1))] $theme - ${THEME_DESCRIPTIONS[$theme]:-}"
+        fi
+    done
+    
+    echo -e "\n${BOLD}Rose Pine:${NC}"
+    for idx in 9 10 11; do
+        local theme="${all_themes[$idx]}"
+        if [[ "$theme" == "$CURRENT_THEME" ]]; then
+            echo -e "  ${GREEN}[$((idx+1))]${NC} ${CYAN}${BOLD}$theme${NC} - ${THEME_DESCRIPTIONS[$theme]:-} ${GREEN}(current)${NC}"
+        else
+            echo -e "  [$((idx+1))] $theme - ${THEME_DESCRIPTIONS[$theme]:-}"
+        fi
+    done
+    
+    echo -e "\n${BOLD}Powerline:${NC}"
+    for idx in 12 13 14 15 16 17 18 19; do
+        local theme="${all_themes[$idx]}"
+        if [[ "$theme" == "$CURRENT_THEME" ]]; then
+            echo -e "  ${GREEN}[$((idx+1))]${NC} ${CYAN}${BOLD}$theme${NC} - ${THEME_DESCRIPTIONS[$theme]:-} ${GREEN}(current)${NC}"
+        else
+            echo -e "  [$((idx+1))] $theme - ${THEME_DESCRIPTIONS[$theme]:-}"
+        fi
+    done
+    
+    echo -e "\n${BOLD}Kanagawa:${NC}"
+    for idx in 20 21 22; do
+        local theme="${all_themes[$idx]}"
+        if [[ "$theme" == "$CURRENT_THEME" ]]; then
+            echo -e "  ${GREEN}[$((idx+1))]${NC} ${CYAN}${BOLD}$theme${NC} - ${THEME_DESCRIPTIONS[$theme]:-} ${GREEN}(current)${NC}"
+        else
+            echo -e "  [$((idx+1))] $theme - ${THEME_DESCRIPTIONS[$theme]:-}"
+        fi
+    done
+    
+    echo -e "\n${BOLD}Classic:${NC}"
+    for idx in 23 24 25 26; do
+        local theme="${all_themes[$idx]}"
+        if [[ "$theme" == "$CURRENT_THEME" ]]; then
+            echo -e "  ${GREEN}[$((idx+1))]${NC} ${CYAN}${BOLD}$theme${NC} - ${THEME_DESCRIPTIONS[$theme]:-} ${GREEN}(current)${NC}"
+        else
+            echo -e "  [$((idx+1))] $theme - ${THEME_DESCRIPTIONS[$theme]:-}"
+        fi
+    done
+    
+    echo -e "\n${BOLD}Minimal:${NC}"
+    for idx in 27; do
+        local theme="${all_themes[$idx]}"
+        if [[ "$theme" == "$CURRENT_THEME" ]]; then
+            echo -e "  ${GREEN}[$((idx+1))]${NC} ${CYAN}${BOLD}$theme${NC} - ${THEME_DESCRIPTIONS[$theme]:-} ${GREEN}(current)${NC}"
+        else
+            echo -e "  [$((idx+1))] $theme - ${THEME_DESCRIPTIONS[$theme]:-}"
+        fi
+    done
+    
+    echo ""
+    read -rp "Enter number or theme name (q to quit): " selection
+    
+    if [[ "$selection" == "q" || "$selection" == "Q" ]]; then
+        echo "Cancelled."
+        return 0
+    fi
+    
+    # Check if selection is a number
+    if [[ "$selection" =~ ^[0-9]+$ ]]; then
+        if ((selection >= 1 && selection <= ${#all_themes[@]})); then
+            set_theme "${all_themes[$((selection-1))]}"
+        else
+            echo -e "${RED}Invalid selection (1-${#all_themes[@]})${NC}"
+            return 1
+        fi
+    else
+        set_theme "$selection"
+    fi
+}
+
+restart_tmux() {
+    if [[ -z "${TMUX:-}" ]]; then
+        echo -e "${YELLOW}Not in a tmux session. Starting new tmux session...${NC}"
+        exec tmux new-session
+    else
+        echo -e "${YELLOW}Restarting tmux to apply theme cleanly...${NC}"
+        # Kill server will terminate this script, so tmux will restart from user's shell
+        echo -e "${CYAN}Run 'tmux' to start a new session after server stops.${NC}"
+        tmux kill-server
+    fi
+}
+
+# Main
+case "${1:-}" in
+    --help|-h)
+        show_help
+        ;;
+    --list|-l)
+        list_themes
+        ;;
+    --current|-c)
+        show_current
+        ;;
+    --restart|-r)
+        restart_tmux
+        ;;
+    "")
+        interactive_select
+        ;;
+    *)
+        set_theme "$1"
+        ;;
+esac

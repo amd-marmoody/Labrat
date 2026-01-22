@@ -1,0 +1,31 @@
+# LabRat Test Container - Ubuntu
+FROM ubuntu:22.04
+
+# Prevent interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install basic dependencies
+RUN apt-get update && apt-get install -y \
+    sudo \
+    curl \
+    wget \
+    git \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create test user
+RUN useradd -m -s /bin/bash testuser && \
+    echo "testuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Switch to test user
+USER testuser
+WORKDIR /home/testuser
+
+# Copy LabRat source
+COPY --chown=testuser:testuser . /home/testuser/.labrat
+
+# Set working directory
+WORKDIR /home/testuser/.labrat
+
+# Default command
+CMD ["/bin/bash"]

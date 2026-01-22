@@ -1,0 +1,304 @@
+// ============================================================================
+// LabRat Fastfetch Configuration - Full
+// Comprehensive system information for server debugging
+// ============================================================================
+{
+    "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+    
+    // Custom LabRat logo
+    // Available logos: labrat-logo.txt, logo-knife-rat.txt, logo-option1-5.txt
+    "logo": {
+        "source": "~/.config/fastfetch/logo-knife-rat.txt",
+        "type": "file",
+        "color": {
+            "1": "blue",       // Main body (ears, outline)
+            "2": "white",      // Eyes/body details
+            "3": "red",        // Highlights
+            "4": "cyan",       // LabRat text banner
+            "5": "bright_black", // Knife handle
+            "6": "yellow",     // Emoji/icons
+            "7": "bright_white" // Knife blade
+        },
+        "padding": {
+            "top": 1,
+            "left": 2
+        }
+    },
+    
+    // Display settings
+    "display": {
+        "separator": "  ",
+        "size": {
+            "maxPrefix": "GB",
+            "ndigits": 2
+        },
+        "percent": {
+            "ndigits": 1
+        },
+        "temp": {
+            "ndigits": 0
+        }
+    },
+    
+    // Modules to display
+    "modules": [
+        // ═══════════════════════════════════════════════════════════════
+        // Identity & System
+        // ═══════════════════════════════════════════════════════════════
+        {
+            "type": "title",
+            "format": "{user-name-colored}@{host-name-colored}"
+        },
+        {
+            "type": "separator",
+            "string": "─"
+        },
+        {
+            "type": "os",
+            "key": "OS",
+            "keyColor": "blue"
+        },
+        {
+            "type": "kernel",
+            "key": "Kernel",
+            "keyColor": "blue"
+        },
+        {
+            "type": "host",
+            "key": "Host",
+            "keyColor": "blue"
+        },
+        {
+            "type": "chassis",
+            "key": "Chassis",
+            "keyColor": "blue"
+        },
+        
+        "break",
+        
+        // ═══════════════════════════════════════════════════════════════
+        // Runtime & Session
+        // ═══════════════════════════════════════════════════════════════
+        {
+            "type": "uptime",
+            "key": "Uptime",
+            "keyColor": "green"
+        },
+        {
+            "type": "loadavg",
+            "key": "Load",
+            "keyColor": "green"
+        },
+        {
+            "type": "processes",
+            "key": "Procs",
+            "keyColor": "green"
+        },
+        {
+            "type": "users",
+            "key": "Users",
+            "keyColor": "green"
+        },
+        {
+            "type": "shell",
+            "key": "Shell",
+            "keyColor": "green"
+        },
+        {
+            "type": "terminal",
+            "key": "Term",
+            "keyColor": "green"
+        },
+        
+        "break",
+        
+        // ═══════════════════════════════════════════════════════════════
+        // Hardware
+        // ═══════════════════════════════════════════════════════════════
+        {
+            "type": "cpu",
+            "key": "CPU",
+            "keyColor": "yellow",
+            "showPeCoreCount": true,
+            "temp": true
+        },
+        {
+            "type": "cpuusage",
+            "key": "├ Usage",
+            "keyColor": "yellow"
+        },
+        {
+            "type": "gpu",
+            "key": "GPU",
+            "keyColor": "yellow",
+            "temp": true
+        },
+        {
+            "type": "memory",
+            "key": "Memory",
+            "keyColor": "cyan"
+        },
+        {
+            "type": "swap",
+            "key": "Swap",
+            "keyColor": "cyan"
+        },
+        
+        "break",
+        
+        // ═══════════════════════════════════════════════════════════════
+        // Storage
+        // ═══════════════════════════════════════════════════════════════
+        {
+            "type": "disk",
+            "key": "Disk /",
+            "keyColor": "magenta",
+            "folders": "/"
+        },
+        {
+            "type": "disk",
+            "key": "├ /home",
+            "keyColor": "magenta",
+            "folders": "/home"
+        },
+        
+        "break",
+        
+        // ═══════════════════════════════════════════════════════════════
+        // Network
+        // ═══════════════════════════════════════════════════════════════
+        {
+            "type": "localip",
+            "key": "Local IP",
+            "keyColor": "red",
+            "showMac": false,
+            "showSpeed": false,
+            "showLoop": false,
+            "compact": true
+        },
+        {
+            "type": "publicip",
+            "key": "Public IP",
+            "keyColor": "red",
+            "timeout": 2000
+        },
+        {
+            "type": "dns",
+            "key": "DNS",
+            "keyColor": "red"
+        },
+        
+        "break",
+        
+        // ═══════════════════════════════════════════════════════════════
+        // Software
+        // ═══════════════════════════════════════════════════════════════
+        {
+            "type": "packages",
+            "key": "Packages",
+            "keyColor": "white"
+        },
+        {
+            "type": "datetime",
+            "key": "Time",
+            "keyColor": "white",
+            "format": {
+                "type": "datetime",
+                "format": "{1}-{3}-{11} {14}:{17}:{20} {22}"
+            }
+        },
+        
+        "break",
+        
+        // ═══════════════════════════════════════════════════════════════
+        // GPU & ROCm (AMD)
+        // ═══════════════════════════════════════════════════════════════
+        {
+            "type": "command",
+            "key": "ROCm",
+            "keyColor": "red",
+            "shell": "/bin/bash",
+            "text": "if command -v rocminfo &>/dev/null; then rocminfo 2>/dev/null | grep -m1 'ROCm Runtime' | awk '{print $NF}'; elif [ -f /opt/rocm/.info/version ]; then cat /opt/rocm/.info/version; elif [ -d /opt/rocm ]; then ls /opt/rocm/ | grep -E '^[0-9]' | head -1 || echo 'installed'; else echo 'not installed'; fi"
+        },
+        {
+            "type": "command",
+            "key": "├ Driver",
+            "keyColor": "red",
+            "shell": "/bin/bash",
+            "text": "if lsmod 2>/dev/null | grep -q amdgpu; then echo \"amdgpu $(cat /sys/module/amdgpu/version 2>/dev/null || echo 'loaded')\"; elif [ -f /sys/module/amdgpu/version ]; then echo \"amdgpu $(cat /sys/module/amdgpu/version)\"; else echo 'amdgpu not loaded'; fi"
+        },
+        
+        "break",
+        
+        // ═══════════════════════════════════════════════════════════════
+        // Package Status Check (customizable)
+        // ═══════════════════════════════════════════════════════════════
+        {
+            "type": "command",
+            "key": "Tools",
+            "keyColor": "cyan",
+            "shell": "/bin/bash",
+            "text": "tools='docker tmux neovim fzf ripgrep'; found=''; missing=''; for t in $tools; do if command -v $t &>/dev/null || dpkg -l $t 2>/dev/null | grep -q ^ii || rpm -q $t &>/dev/null 2>&1; then found=\"$found ✓$t\"; else missing=\"$missing ✗$t\"; fi; done; echo \"$found$missing\" | xargs"
+        },
+        {
+            "type": "command",
+            "key": "├ Python",
+            "keyColor": "cyan",
+            "shell": "/bin/bash",
+            "text": "if command -v python3 &>/dev/null; then python3 --version 2>&1 | awk '{print $2}'; elif command -v python &>/dev/null; then python --version 2>&1 | awk '{print $2}'; else echo 'not installed'; fi"
+        },
+        {
+            "type": "command",
+            "key": "├ Node",
+            "keyColor": "cyan",
+            "shell": "/bin/bash",
+            "text": "if command -v node &>/dev/null; then node --version 2>&1 | tr -d 'v'; else echo 'not installed'; fi"
+        },
+        {
+            "type": "command",
+            "key": "├ Go",
+            "keyColor": "cyan",
+            "shell": "/bin/bash",
+            "text": "if command -v go &>/dev/null; then go version 2>&1 | awk '{print $3}' | tr -d 'go'; else echo 'not installed'; fi"
+        },
+        {
+            "type": "command",
+            "key": "├ Rust",
+            "keyColor": "cyan",
+            "shell": "/bin/bash",
+            "text": "if command -v rustc &>/dev/null; then rustc --version 2>&1 | awk '{print $2}'; else echo 'not installed'; fi"
+        },
+        
+        "break",
+        
+        // ═══════════════════════════════════════════════════════════════
+        // Container & Virtualization
+        // ═══════════════════════════════════════════════════════════════
+        {
+            "type": "command",
+            "key": "Docker",
+            "keyColor": "blue",
+            "shell": "/bin/bash",
+            "text": "if command -v docker &>/dev/null; then docker --version 2>&1 | awk '{print $3}' | tr -d ','; else echo 'not installed'; fi"
+        },
+        {
+            "type": "command",
+            "key": "├ Podman",
+            "keyColor": "blue",
+            "shell": "/bin/bash",
+            "text": "if command -v podman &>/dev/null; then podman --version 2>&1 | awk '{print $3}'; else echo 'not installed'; fi"
+        },
+        {
+            "type": "command",
+            "key": "├ K8s",
+            "keyColor": "blue",
+            "shell": "/bin/bash",
+            "text": "if command -v kubectl &>/dev/null; then kubectl version --client --short 2>/dev/null | awk '{print $3}' || kubectl version --client 2>&1 | grep -oP 'v[0-9.]+' | head -1; else echo 'not installed'; fi"
+        },
+        
+        "break",
+        
+        // Color palette
+        "colors"
+    ]
+}
