@@ -8,7 +8,7 @@
     // Custom LabRat logo
     // Available logos: labrat-logo.txt, logo-knife-rat.txt, logo-option1-5.txt
     "logo": {
-        "source": "~/.config/fastfetch/logo-knife-rat.txt",
+        "source": "~/.config/fastfetch/labrat-logo.txt",
         "type": "file",
         "color": {
             "1": "blue",       // Main body (ears, outline)
