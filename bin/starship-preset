@@ -147,6 +147,30 @@ show_usage() {
     echo "  starship-preset minimal"
 }
 
+# Reload starship in current shell
+reload_starship() {
+    echo -e "${YELLOW}Reloading starship...${NC}"
+    
+    # Detect current shell
+    local current_shell
+    current_shell=$(basename "$SHELL")
+    
+    case "$current_shell" in
+        bash)
+            echo -e "${CYAN}Run this command:${NC} eval \"\$(starship init bash)\""
+            ;;
+        zsh)
+            echo -e "${CYAN}Run this command:${NC} exec zsh"
+            ;;
+        fish)
+            echo -e "${CYAN}Run this command:${NC} exec fish"
+            ;;
+        *)
+            echo -e "${YELLOW}Run:${NC} source ~/.${current_shell}rc"
+            ;;
+    esac
+}
+
 # Main
 main() {
     case "${1:-}" in
@@ -163,6 +187,9 @@ main() {
             ;;
         current)
             get_current
+            ;;
+        reload)
+            reload_starship
             ;;
         help|-h|--help)
             show_usage
