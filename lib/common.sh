@@ -381,6 +381,88 @@ download_and_extract() {
 }
 
 # ============================================================================
+# GitHub API Utilities
+# ============================================================================
+
+# Get latest release version from GitHub
+# Usage: get_github_latest_release "owner/repo"
+# Returns: version string (e.g., "v1.2.3" or "1.2.3")
+get_github_latest_release() {
+    local repo="$1"
+    local api_url="https://api.github.com/repos/${repo}/releases/latest"
+    local version=""
+    
+    if command_exists curl; then
+        version=$(curl -fsSL "$api_url" 2>/dev/null | grep -Po '"tag_name": *"\K[^"]+' || echo "")
+    elif command_exists wget; then
+        version=$(wget -qO- "$api_url" 2>/dev/null | grep -Po '"tag_name": *"\K[^"]+' || echo "")
+    fi
+    
+    if [[ -z "$version" ]]; then
+        log_debug "Failed to get latest release for $repo"
+        return 1
+    fi
+    
+    echo "$version"
+}
+
+# Get download URL for a specific asset from GitHub release
+# Usage: get_github_release_asset "owner/repo" "version" "asset_pattern"
+get_github_release_asset() {
+    local repo="$1"
+    local version="$2"
+    local pattern="$3"
+    
+    local api_url="https://api.github.com/repos/${repo}/releases/tags/${version}"
+    local assets_json=""
+    
+    if command_exists curl; then
+        assets_json=$(curl -fsSL "$api_url" 2>/dev/null)
+    elif command_exists wget; then
+        assets_json=$(wget -qO- "$api_url" 2>/dev/null)
+    fi
+    
+    # Extract browser_download_url matching pattern
+    echo "$assets_json" | grep -oP '"browser_download_url":\s*"\K[^"]*'"$pattern"'[^"]*' | head -1
+}
+
+# Download GitHub release asset
+# Usage: download_github_release "owner/repo" "asset_pattern" "output_file" [version]
+download_github_release() {
+    local repo="$1"
+    local pattern="$2"
+    local output="$3"
+    local version="${4:-}"
+    
+    # Get latest version if not specified
+    if [[ -z "$version" ]]; then
+        version=$(get_github_latest_release "$repo")
+        if [[ -z "$version" ]]; then
+            log_error "Failed to get latest release for $repo"
+            return 1
+        fi
+    fi
+    
+    log_debug "Downloading $repo version $version"
+    
+    # Construct download URL
+    # Try direct release download URL first
+    local download_url="https://github.com/${repo}/releases/download/${version}/${pattern}"
+    
+    # If pattern contains wildcards, use API to find exact URL
+    if [[ "$pattern" == *"*"* ]] || [[ "$pattern" == *"{"* ]]; then
+        download_url=$(get_github_release_asset "$repo" "$version" "$pattern")
+    fi
+    
+    if [[ -z "$download_url" ]]; then
+        log_error "Failed to find download URL for $pattern"
+        return 1
+    fi
+    
+    download_file "$download_url" "$output" "Downloading $(basename "$output")"
+}
+
+# ============================================================================
 # Git Utilities
 # ============================================================================
 
