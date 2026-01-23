@@ -1,0 +1,567 @@
+#!/usr/bin/env bash
+#
+# LabRat SSH Key Management CLI
+# Manage SSH keys for remote authentication
+#
+# Usage: labrat-ssh [command] [options]
+#
+
+set -e
+
+# Configuration
+LABRAT_SSH_DIR="${LABRAT_SSH_DIR:-$HOME/.ssh/labrat}"
+LABRAT_SSH_CONFIG_D="$HOME/.ssh/config.d"
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+BOLD='\033[1m'
+DIM='\033[2m'
+
+# Ensure directories exist
+ensure_directories() {
+    mkdir -p "$LABRAT_SSH_DIR" 2>/dev/null || true
+    chmod 700 "$LABRAT_SSH_DIR" 2>/dev/null || true
+    mkdir -p "$LABRAT_SSH_CONFIG_D" 2>/dev/null || true
+    chmod 700 "$LABRAT_SSH_CONFIG_D" 2>/dev/null || true
+}
+
+# ============================================================================
+# List Keys
+# ============================================================================
+
+list_keys() {
+    echo ""
+    echo -e "${BOLD}${CYAN}LabRat Managed SSH Keys${NC}"
+    echo -e "${DIM}────────────────────────${NC}"
+    echo ""
+    
+    if [[ ! -d "$LABRAT_SSH_DIR" ]] || [[ -z "$(ls -A "$LABRAT_SSH_DIR" 2>/dev/null)" ]]; then
+        echo -e "  ${DIM}No keys found in $LABRAT_SSH_DIR${NC}"
+        echo ""
+        echo -e "  Use ${BOLD}labrat-ssh add${NC} to add a key"
+        echo ""
+        return 0
+    fi
+    
+    local count=0
+    for key in "$LABRAT_SSH_DIR"/*; do
+        [[ -f "$key" && "$key" != *.pub ]] || continue
+        
+        local key_name
+        key_name=$(basename "$key")
+        
+        local fingerprint=""
+        local key_type=""
+        local comment=""
+        
+        if [[ -f "${key}.pub" ]]; then
+            local key_info
+            key_info=$(ssh-keygen -lf "${key}.pub" 2>/dev/null || echo "")
+            if [[ -n "$key_info" ]]; then
+                fingerprint=$(echo "$key_info" | awk '{print $2}')
+                key_type=$(echo "$key_info" | awk '{print $4}' | tr -d '()')
+                comment=$(echo "$key_info" | awk '{print $3}')
+            fi
+        fi
+        
+        # Check if key is loaded in agent
+        local loaded=""
+        if ssh-add -l 2>/dev/null | grep -q "$fingerprint"; then
+            loaded="${GREEN}●${NC} "
+        else
+            loaded="${DIM}○${NC} "
+        fi
+        
+        echo -e "  ${loaded}${BOLD}${key_name}${NC}"
+        if [[ -n "$key_type" ]]; then
+            echo -e "      Type: ${CYAN}${key_type}${NC}"
+        fi
+        if [[ -n "$fingerprint" ]]; then
+            echo -e "      Fingerprint: ${DIM}${fingerprint}${NC}"
+        fi
+        if [[ -n "$comment" ]] && [[ "$comment" != "no" ]]; then
+            echo -e "      Comment: ${DIM}${comment}${NC}"
+        fi
+        
+        # Check for SSH config
+        local config_file="${LABRAT_SSH_CONFIG_D}/${key_name}.conf"
+        if [[ -f "$config_file" ]]; then
+            local hosts
+            hosts=$(grep "^Host " "$config_file" 2>/dev/null | awk '{print $2}' | tr '\n' ', ' | sed 's/,$//')
+            if [[ -n "$hosts" ]]; then
+                echo -e "      Hosts: ${YELLOW}${hosts}${NC}"
+            fi
+        fi
+        
+        echo ""
+        ((count++))
+    done
+    
+    echo -e "${DIM}Legend: ${GREEN}●${NC} loaded in ssh-agent  ${DIM}○ not loaded${NC}"
+    echo ""
+    echo -e "Total: ${BOLD}${count}${NC} key(s)"
+    echo ""
+}
+
+# ============================================================================
+# Show Public Key
+# ============================================================================
+
+show_key() {
+    local key_name="$1"
+    
+    if [[ -z "$key_name" ]]; then
+        echo -e "${RED}Error:${NC} Key name required"
+        echo "Usage: labrat-ssh show <key-name>"
+        echo ""
+        echo "Available keys:"
+        for key in "$LABRAT_SSH_DIR"/*; do
+            [[ -f "$key" && "$key" != *.pub ]] || continue
+            echo "  - $(basename "$key")"
+        done
+        return 1
+    fi
+    
+    local pub_path="${LABRAT_SSH_DIR}/${key_name}.pub"
+    
+    if [[ ! -f "$pub_path" ]]; then
+        # Try to generate from private key
+        local priv_path="${LABRAT_SSH_DIR}/${key_name}"
+        if [[ -f "$priv_path" ]]; then
+            echo -e "${YELLOW}Generating public key from private key...${NC}"
+            if ssh-keygen -y -f "$priv_path" > "$pub_path" 2>/dev/null; then
+                chmod 644 "$pub_path"
+            else
+                echo -e "${RED}Error:${NC} Could not extract public key (passphrase required?)"
+                return 1
+            fi
+        else
+            echo -e "${RED}Error:${NC} Key '$key_name' not found"
+            return 1
+        fi
+    fi
+    
+    echo ""
+    echo -e "${BOLD}Public key for: ${CYAN}${key_name}${NC}"
+    echo -e "${DIM}Copy this to GitHub, servers, authorized_keys, etc.${NC}"
+    echo ""
+    echo -e "${GREEN}$(cat "$pub_path")${NC}"
+    echo ""
+    
+    # Copy to clipboard if available
+    if command -v xclip &>/dev/null; then
+        cat "$pub_path" | xclip -selection clipboard 2>/dev/null && \
+            echo -e "${DIM}(Copied to clipboard)${NC}"
+    elif command -v pbcopy &>/dev/null; then
+        cat "$pub_path" | pbcopy 2>/dev/null && \
+            echo -e "${DIM}(Copied to clipboard)${NC}"
+    fi
+    echo ""
+}
+
+# ============================================================================
+# Add Key
+# ============================================================================
+
+add_key() {
+    echo ""
+    echo -e "${BOLD}${CYAN}Add SSH Key${NC}"
+    echo ""
+    echo "How would you like to add a key?"
+    echo ""
+    echo -e "  ${BOLD}1)${NC} Paste private key content"
+    echo -e "  ${BOLD}2)${NC} Specify path to existing key file"
+    echo -e "  ${BOLD}3)${NC} Generate a new ED25519 key"
+    echo ""
+    
+    local choice
+    read -p "Select option [1-3]: " choice
+    
+    case "$choice" in
+        1) add_key_paste ;;
+        2) add_key_path ;;
+        3) generate_key ;;
+        *)
+            echo -e "${RED}Invalid option${NC}"
+            return 1
+            ;;
+    esac
+}
+
+add_key_paste() {
+    show_security_info
+    
+    local key_name
+    read -p "Enter a label for this key: " key_name
+    key_name=$(echo "$key_name" | tr -cd '[:alnum:]_-')
+    
+    if [[ -z "$key_name" ]]; then
+        echo -e "${RED}Error:${NC} Invalid key name"
+        return 1
+    fi
+    
+    local key_path="${LABRAT_SSH_DIR}/${key_name}"
+    
+    if [[ -f "$key_path" ]]; then
+        read -p "Key '$key_name' exists. Overwrite? [y/N]: " confirm
+        [[ "$confirm" =~ ^[Yy] ]] || return 0
+    fi
+    
+    echo ""
+    echo -e "${BOLD}Paste your private key (Ctrl-D when done):${NC}"
+    echo ""
+    
+    local key_content=""
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        key_content+="$line"$'\n'
+    done
+    
+    if ! echo "$key_content" | grep -q "BEGIN.*PRIVATE KEY"; then
+        echo -e "${RED}Error:${NC} Invalid private key format"
+        return 1
+    fi
+    
+    echo "$key_content" > "$key_path"
+    chmod 600 "$key_path"
+    
+    # Generate public key
+    if ssh-keygen -y -f "$key_path" > "${key_path}.pub" 2>/dev/null; then
+        chmod 644 "${key_path}.pub"
+    fi
+    
+    echo -e "${GREEN}✓${NC} Key saved: $key_path"
+    
+    # Prompt for SSH config
+    prompt_config "$key_name"
+}
+
+add_key_path() {
+    show_security_info
+    
+    local source_path
+    read -p "Enter path to private key: " source_path
+    source_path="${source_path/#\~/$HOME}"
+    
+    if [[ ! -f "$source_path" ]]; then
+        echo -e "${RED}Error:${NC} File not found: $source_path"
+        return 1
+    fi
+    
+    local default_name
+    default_name=$(basename "$source_path" | sed 's/^id_//')
+    
+    local key_name
+    read -p "Enter a label for this key [$default_name]: " key_name
+    key_name="${key_name:-$default_name}"
+    key_name=$(echo "$key_name" | tr -cd '[:alnum:]_-')
+    
+    if [[ -z "$key_name" ]]; then
+        echo -e "${RED}Error:${NC} Invalid key name"
+        return 1
+    fi
+    
+    local key_path="${LABRAT_SSH_DIR}/${key_name}"
+    
+    if [[ -f "$key_path" ]]; then
+        read -p "Key '$key_name' exists. Overwrite? [y/N]: " confirm
+        [[ "$confirm" =~ ^[Yy] ]] || return 0
+    fi
+    
+    cp "$source_path" "$key_path"
+    chmod 600 "$key_path"
+    
+    if [[ -f "${source_path}.pub" ]]; then
+        cp "${source_path}.pub" "${key_path}.pub"
+        chmod 644 "${key_path}.pub"
+    elif ssh-keygen -y -f "$key_path" > "${key_path}.pub" 2>/dev/null; then
+        chmod 644 "${key_path}.pub"
+    fi
+    
+    echo -e "${GREEN}✓${NC} Key saved: $key_path"
+    
+    prompt_config "$key_name"
+}
+
+generate_key() {
+    show_security_info
+    
+    local key_name
+    read -p "Enter a label for this key: " key_name
+    key_name=$(echo "$key_name" | tr -cd '[:alnum:]_-')
+    
+    if [[ -z "$key_name" ]]; then
+        echo -e "${RED}Error:${NC} Invalid key name"
+        return 1
+    fi
+    
+    local key_path="${LABRAT_SSH_DIR}/${key_name}"
+    
+    if [[ -f "$key_path" ]]; then
+        read -p "Key '$key_name' exists. Overwrite? [y/N]: " confirm
+        [[ "$confirm" =~ ^[Yy] ]] || return 0
+        rm -f "$key_path" "${key_path}.pub"
+    fi
+    
+    local email
+    read -p "Enter email for key comment: " email
+    email="${email:-labrat@$(hostname)}"
+    
+    read -p "Add passphrase protection? [Y/n]: " use_pass
+    
+    if [[ ! "$use_pass" =~ ^[Nn] ]]; then
+        ssh-keygen -t ed25519 -C "$email" -f "$key_path"
+    else
+        ssh-keygen -t ed25519 -C "$email" -f "$key_path" -N ""
+    fi
+    
+    if [[ $? -eq 0 ]]; then
+        chmod 600 "$key_path"
+        chmod 644 "${key_path}.pub"
+        echo -e "${GREEN}✓${NC} Key generated: $key_path"
+        echo ""
+        echo -e "${BOLD}Public key:${NC}"
+        cat "${key_path}.pub"
+        echo ""
+        
+        prompt_config "$key_name"
+    fi
+}
+
+show_security_info() {
+    echo ""
+    echo -e "${YELLOW}╔═══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${YELLOW}║${NC} ${BOLD}🔒 SECURITY NOTICE${NC}                                          ${YELLOW}║${NC}"
+    echo -e "${YELLOW}╠═══════════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${YELLOW}║${NC} • Key stored in: ~/.ssh/labrat/<name> (permissions: 600)     ${YELLOW}║${NC}"
+    echo -e "${YELLOW}║${NC} • Never transmitted - stays local on this machine            ${YELLOW}║${NC}"
+    echo -e "${YELLOW}║${NC} • Auto-loaded to ssh-agent on shell startup                  ${YELLOW}║${NC}"
+    echo -e "${YELLOW}║${NC} • ${RED}NEVER share your private key${NC}                                ${YELLOW}║${NC}"
+    echo -e "${YELLOW}╚═══════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+}
+
+prompt_config() {
+    local key_name="$1"
+    local key_path="${LABRAT_SSH_DIR}/${key_name}"
+    
+    echo ""
+    read -p "Configure SSH hosts for this key? [Y/n]: " do_config
+    
+    if [[ "$do_config" =~ ^[Nn] ]]; then
+        return 0
+    fi
+    
+    echo ""
+    echo "Common patterns: github.com, gitlab.com, *.internal.company"
+    local hosts
+    read -p "Enter host pattern(s) (comma-separated): " hosts
+    
+    if [[ -z "$hosts" ]]; then
+        return 0
+    fi
+    
+    local config_file="${LABRAT_SSH_CONFIG_D}/${key_name}.conf"
+    {
+        echo "# LabRat SSH Config: ${key_name}"
+        echo "# Generated: $(date)"
+        echo ""
+        IFS=',' read -ra HOST_ARRAY <<< "$hosts"
+        for host in "${HOST_ARRAY[@]}"; do
+            host=$(echo "$host" | xargs)
+            [[ -n "$host" ]] || continue
+            echo "Host ${host}"
+            echo "    IdentityFile ${key_path}"
+            echo "    AddKeysToAgent yes"
+            echo "    IdentitiesOnly yes"
+            echo ""
+        done
+    } > "$config_file"
+    
+    chmod 600 "$config_file"
+    echo -e "${GREEN}✓${NC} SSH config created: $config_file"
+    
+    # Ensure include exists
+    if ! grep -q "Include.*config\.d" "$HOME/.ssh/config" 2>/dev/null; then
+        {
+            echo "# LabRat SSH includes"
+            echo "Include ~/.ssh/config.d/*.conf"
+            echo ""
+            cat "$HOME/.ssh/config" 2>/dev/null || true
+        } > "$HOME/.ssh/config.tmp"
+        mv "$HOME/.ssh/config.tmp" "$HOME/.ssh/config"
+        chmod 600 "$HOME/.ssh/config"
+    fi
+}
+
+# ============================================================================
+# Remove Key
+# ============================================================================
+
+remove_key() {
+    local key_name="$1"
+    
+    if [[ -z "$key_name" ]]; then
+        echo -e "${RED}Error:${NC} Key name required"
+        echo "Usage: labrat-ssh remove <key-name>"
+        return 1
+    fi
+    
+    local key_path="${LABRAT_SSH_DIR}/${key_name}"
+    
+    if [[ ! -f "$key_path" ]]; then
+        echo -e "${RED}Error:${NC} Key '$key_name' not found"
+        return 1
+    fi
+    
+    echo -e "${YELLOW}Warning:${NC} This will permanently delete:"
+    echo "  - $key_path"
+    [[ -f "${key_path}.pub" ]] && echo "  - ${key_path}.pub"
+    
+    local config_file="${LABRAT_SSH_CONFIG_D}/${key_name}.conf"
+    [[ -f "$config_file" ]] && echo "  - $config_file"
+    echo ""
+    
+    read -p "Are you sure? [y/N]: " confirm
+    
+    if [[ "$confirm" =~ ^[Yy] ]]; then
+        rm -f "$key_path" "${key_path}.pub" "$config_file"
+        echo -e "${GREEN}✓${NC} Key '$key_name' removed"
+    else
+        echo "Cancelled"
+    fi
+}
+
+# ============================================================================
+# Load Keys
+# ============================================================================
+
+load_keys() {
+    echo ""
+    echo -e "${BOLD}Loading SSH keys into agent...${NC}"
+    echo ""
+    
+    local loaded=0
+    local skipped=0
+    
+    for key in "$LABRAT_SSH_DIR"/*; do
+        [[ -f "$key" && "$key" != *.pub ]] || continue
+        
+        local key_name
+        key_name=$(basename "$key")
+        
+        local fingerprint
+        fingerprint=$(ssh-keygen -lf "$key" 2>/dev/null | awk '{print $2}')
+        
+        if [[ -n "$fingerprint" ]] && ssh-add -l 2>/dev/null | grep -q "$fingerprint"; then
+            echo -e "  ${DIM}○ ${key_name} (already loaded)${NC}"
+            ((skipped++))
+        else
+            if ssh-add "$key" 2>/dev/null; then
+                echo -e "  ${GREEN}●${NC} ${key_name} ${GREEN}loaded${NC}"
+                ((loaded++))
+            else
+                echo -e "  ${YELLOW}⚠${NC} ${key_name} ${YELLOW}(passphrase required)${NC}"
+            fi
+        fi
+    done
+    
+    echo ""
+    echo -e "Loaded: ${GREEN}${loaded}${NC}  Skipped: ${DIM}${skipped}${NC}"
+    echo ""
+}
+
+# ============================================================================
+# Unload Keys
+# ============================================================================
+
+unload_keys() {
+    echo ""
+    echo -e "${BOLD}Unloading SSH keys from agent...${NC}"
+    echo ""
+    
+    for key in "$LABRAT_SSH_DIR"/*; do
+        [[ -f "$key" && "$key" != *.pub ]] || continue
+        
+        local key_name
+        key_name=$(basename "$key")
+        
+        if ssh-add -d "$key" 2>/dev/null; then
+            echo -e "  ${GREEN}✓${NC} ${key_name} unloaded"
+        fi
+    done
+    
+    echo ""
+}
+
+# ============================================================================
+# Help
+# ============================================================================
+
+show_help() {
+    echo ""
+    echo -e "${BOLD}${CYAN}LabRat SSH Key Manager${NC}"
+    echo ""
+    echo -e "${BOLD}Usage:${NC}"
+    echo "  labrat-ssh [command] [options]"
+    echo ""
+    echo -e "${BOLD}Commands:${NC}"
+    echo "  list              List all managed SSH keys"
+    echo "  add               Add a new SSH key (interactive)"
+    echo "  show <name>       Show public key (for copying to servers)"
+    echo "  remove <name>     Remove a key"
+    echo "  load              Load all keys into ssh-agent"
+    echo "  unload            Unload all keys from ssh-agent"
+    echo "  help              Show this help"
+    echo ""
+    echo -e "${BOLD}Examples:${NC}"
+    echo "  labrat-ssh list"
+    echo "  labrat-ssh add"
+    echo "  labrat-ssh show github"
+    echo "  labrat-ssh remove old-key"
+    echo ""
+    echo -e "${BOLD}Key Storage:${NC}"
+    echo "  Keys are stored in: ${CYAN}~/.ssh/labrat/${NC}"
+    echo "  SSH configs are in: ${CYAN}~/.ssh/config.d/${NC}"
+    echo ""
+}
+
+# ============================================================================
+# Main
+# ============================================================================
+
+ensure_directories
+
+case "${1:-}" in
+    list|ls|"")
+        list_keys
+        ;;
+    show|pub|public)
+        show_key "$2"
+        ;;
+    add|new)
+        add_key
+        ;;
+    remove|rm|delete)
+        remove_key "$2"
+        ;;
+    load)
+        load_keys
+        ;;
+    unload)
+        unload_keys
+        ;;
+    help|-h|--help)
+        show_help
+        ;;
+    *)
+        echo -e "${RED}Unknown command:${NC} $1"
+        show_help
+        exit 1
+        ;;
+esac
