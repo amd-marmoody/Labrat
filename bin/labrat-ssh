@@ -335,14 +335,14 @@ generate_key() {
 
 show_security_info() {
     echo ""
-    echo -e "${YELLOW}╔═══════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${YELLOW}║${NC} ${BOLD}🔒 SECURITY NOTICE${NC}                                          ${YELLOW}║${NC}"
-    echo -e "${YELLOW}╠═══════════════════════════════════════════════════════════════╣${NC}"
-    echo -e "${YELLOW}║${NC} • Key stored in: ~/.ssh/labrat/<name> (permissions: 600)     ${YELLOW}║${NC}"
-    echo -e "${YELLOW}║${NC} • Never transmitted - stays local on this machine            ${YELLOW}║${NC}"
-    echo -e "${YELLOW}║${NC} • Auto-loaded to ssh-agent on shell startup                  ${YELLOW}║${NC}"
-    echo -e "${YELLOW}║${NC} • ${RED}NEVER share your private key${NC}                                ${YELLOW}║${NC}"
-    echo -e "${YELLOW}╚═══════════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${YELLOW}╔════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${YELLOW}║${NC} ${BOLD}🔒 SECURITY NOTICE${NC}                                           ${YELLOW}║${NC}"
+    echo -e "${YELLOW}╠════════════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${YELLOW}║${NC}  • Key stored in: ~/.ssh/labrat/<name> (permissions: 600)    ${YELLOW}║${NC}"
+    echo -e "${YELLOW}║${NC}  • Never transmitted - stays local on this machine           ${YELLOW}║${NC}"
+    echo -e "${YELLOW}║${NC}  • Auto-loaded to ssh-agent on shell startup                 ${YELLOW}║${NC}"
+    echo -e "${YELLOW}║${NC}  • ${RED}NEVER share your private key${NC}                               ${YELLOW}║${NC}"
+    echo -e "${YELLOW}╚════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
 }
 
