@@ -511,11 +511,11 @@ interactive_preset_info() {
 }
 
 interactive_ssh_keys() {
-    # Check if labrat-ssh is available and run it
-    if command -v labrat-ssh &>/dev/null; then
-        labrat-ssh
-    elif [[ -x "${LABRAT_ROOT}/bin/labrat-ssh" ]]; then
+    # Prefer the local labrat-ssh script (has latest version)
+    if [[ -x "${LABRAT_ROOT}/bin/labrat-ssh" ]]; then
         "${LABRAT_ROOT}/bin/labrat-ssh"
+    elif command -v labrat-ssh &>/dev/null; then
+        labrat-ssh
     else
         clear
         show_banner
