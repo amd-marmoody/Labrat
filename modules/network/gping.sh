@@ -45,12 +45,13 @@ install_gping_from_github() {
         return 1
     fi
     
-    # gping uses format: gping-Linux-x86_64.tar.gz
+    # gping format: gping-Linux-musl-x86_64.tar.gz
+    # Tag is "gping-v1.20.1", file is "gping-Linux-musl-x86_64.tar.gz"
     local arch_suffix=""
     case "$ARCH" in
-        x86_64|amd64) arch_suffix="Linux-x86_64" ;;
-        aarch64|arm64) arch_suffix="Linux-aarch64" ;;
-        armv7l|armhf) arch_suffix="Linux-arm" ;;
+        x86_64|amd64) arch_suffix="Linux-musl-x86_64" ;;
+        aarch64|arm64) arch_suffix="Linux-musl-arm64" ;;
+        armv7l|armhf) arch_suffix="Linux-musleabihf-armv7" ;;
         *) log_error "Unsupported architecture: $ARCH"; return 1 ;;
     esac
     
