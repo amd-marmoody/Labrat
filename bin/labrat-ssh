@@ -267,6 +267,9 @@ add_key_paste() {
     
     # Prompt for SSH config
     prompt_config "$key_name"
+    
+    # Offer to load the key now
+    prompt_load_key "$key_name"
 }
 
 add_key_path() {
@@ -315,6 +318,9 @@ add_key_path() {
     echo -e "${GREEN}✓${NC} Key saved: $key_path"
     
     prompt_config "$key_name"
+    
+    # Offer to load the key now
+    prompt_load_key "$key_name"
 }
 
 generate_key() {
@@ -360,6 +366,34 @@ generate_key() {
         echo ""
         
         prompt_config "$key_name"
+        
+        # Offer to load the key now
+        prompt_load_key "$key_name"
+    fi
+}
+
+# Prompt to load key immediately
+prompt_load_key() {
+    local key_name="$1"
+    local key_path="${LABRAT_SSH_DIR}/${key_name}"
+    
+    echo ""
+    read -p "Load this key into ssh-agent now? [Y/n]: " do_load
+    
+    if [[ ! "$do_load" =~ ^[Nn] ]]; then
+        if ssh-add "$key_path" 2>/dev/null; then
+            echo -e "${GREEN}✓${NC} Key loaded into ssh-agent"
+        else
+            echo -e "${YELLOW}⚠${NC} Key requires passphrase - enter it now or load later with: labrat-ssh load"
+            ssh-add "$key_path"
+        fi
+    fi
+    
+    # Check if shell integration is installed
+    if ! grep -q 'LabRat SSH Agent' "$HOME/.bashrc" 2>/dev/null && \
+       ! grep -q 'LabRat SSH Agent' "$HOME/.zshrc" 2>/dev/null; then
+        echo ""
+        echo -e "${DIM}Tip: Run ${BOLD}labrat-ssh init${NC}${DIM} to auto-load keys on shell startup${NC}"
     fi
 }
 
