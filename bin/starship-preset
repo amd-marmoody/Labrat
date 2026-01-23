@@ -72,13 +72,12 @@ apply_preset() {
     
     echo -e "${GREEN}✓${NC} Applied starship preset: ${BOLD}${CYAN}$preset${NC}"
     
-    # Reinitialize starship in current shell
+    # Show reload instructions
     echo ""
-    echo -e "${YELLOW}To apply changes to current shell, run:${NC}"
-    echo -e "  ${BOLD}source ~/.bashrc${NC}  (for bash)"
-    echo -e "  ${BOLD}source ~/.zshrc${NC}   (for zsh)"
-    echo ""
-    echo -e "${PURPLE}Or use the quick command:${NC} ${BOLD}starship-reload${NC}"
+    echo -e "${YELLOW}To apply changes to current shell:${NC}"
+    echo -e "  ${BOLD}starship-preset reload${NC}   (shows the command to run)"
+    echo -e "  ${BOLD}source ~/.bashrc${NC}         (for bash)"
+    echo -e "  ${BOLD}source ~/.zshrc${NC}          (for zsh)"
 }
 
 # List available presets
