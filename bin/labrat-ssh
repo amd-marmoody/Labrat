@@ -196,6 +196,7 @@ add_key() {
 
 add_key_paste() {
     show_security_info
+    ensure_directories
     
     local key_name
     read -p "Enter a label for this key: " key_name
@@ -243,6 +244,7 @@ add_key_paste() {
 
 add_key_path() {
     show_security_info
+    ensure_directories
     
     local source_path
     read -p "Enter path to private key: " source_path
@@ -290,6 +292,7 @@ add_key_path() {
 
 generate_key() {
     show_security_info
+    ensure_directories
     
     local key_name
     read -p "Enter a label for this key: " key_name
