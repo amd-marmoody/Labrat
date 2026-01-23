@@ -689,13 +689,109 @@ show_help() {
 }
 
 # ============================================================================
+# Interactive Menu
+# ============================================================================
+
+interactive_menu() {
+    while true; do
+        echo ""
+        echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+        echo -e "${BOLD}${CYAN}                    LabRat SSH Key Manager                     ${NC}"
+        echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+        echo ""
+        
+        # Show quick key count
+        local key_count=0
+        if [[ -d "$LABRAT_SSH_DIR" ]]; then
+            key_count=$(find "$LABRAT_SSH_DIR" -maxdepth 1 -type f ! -name "*.pub" 2>/dev/null | wc -l)
+        fi
+        echo -e "  Keys managed: ${BOLD}${key_count}${NC}"
+        echo ""
+        
+        echo -e "  ${BOLD}1)${NC} ${GREEN}List keys${NC}        - View all managed SSH keys"
+        echo -e "  ${BOLD}2)${NC} ${GREEN}Add key${NC}          - Add/import/generate a new key"
+        echo -e "  ${BOLD}3)${NC} ${GREEN}Show public key${NC}  - Display public key (for copying)"
+        echo -e "  ${BOLD}4)${NC} ${YELLOW}Remove key${NC}       - Delete a managed key"
+        echo ""
+        echo -e "  ${BOLD}5)${NC} ${CYAN}Load keys${NC}        - Load all keys into ssh-agent"
+        echo -e "  ${BOLD}6)${NC} ${CYAN}Unload keys${NC}      - Remove all keys from ssh-agent"
+        echo ""
+        echo -e "  ${BOLD}7)${NC} ${PURPLE}Init shell${NC}       - Set up auto-load on startup"
+        echo ""
+        echo -e "  ${BOLD}q)${NC} Exit"
+        echo ""
+        
+        read -rp "$(echo -e "${CYAN}>${NC} Select option: ")" choice
+        
+        case "$choice" in
+            1)
+                list_keys
+                read -rp "Press Enter to continue..."
+                ;;
+            2)
+                add_key
+                read -rp "Press Enter to continue..."
+                ;;
+            3)
+                echo ""
+                echo "Available keys:"
+                for key in "$LABRAT_SSH_DIR"/*; do
+                    [[ -f "$key" && "$key" != *.pub ]] || continue
+                    echo "  - $(basename "$key")"
+                done
+                echo ""
+                read -rp "Enter key name: " key_name
+                show_key "$key_name"
+                read -rp "Press Enter to continue..."
+                ;;
+            4)
+                echo ""
+                echo "Available keys:"
+                for key in "$LABRAT_SSH_DIR"/*; do
+                    [[ -f "$key" && "$key" != *.pub ]] || continue
+                    echo "  - $(basename "$key")"
+                done
+                echo ""
+                read -rp "Enter key name to remove: " key_name
+                remove_key "$key_name"
+                read -rp "Press Enter to continue..."
+                ;;
+            5)
+                load_keys
+                read -rp "Press Enter to continue..."
+                ;;
+            6)
+                unload_keys
+                read -rp "Press Enter to continue..."
+                ;;
+            7)
+                init_shell_integration
+                read -rp "Press Enter to continue..."
+                ;;
+            q|Q|exit)
+                echo -e "${DIM}Goodbye!${NC}"
+                return 0
+                ;;
+            *)
+                echo -e "${RED}Invalid option${NC}"
+                sleep 1
+                ;;
+        esac
+    done
+}
+
+# ============================================================================
 # Main
 # ============================================================================
 
 # Only ensure directories for commands that need them
 case "${1:-}" in
-    list|ls|"")
+    list|ls)
         list_keys
+        ;;
+    "")
+        # Interactive menu when no arguments
+        interactive_menu
         ;;
     show|pub|public)
         show_key "$2"
