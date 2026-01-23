@@ -617,7 +617,9 @@ show_installed_modules() {
     for marker in "$installed_dir"/*; do
         if [[ -f "$marker" ]]; then
             local module=$(basename "$marker")
-            local version=$(cat "$marker")
+            # Only read first line of version file (some have multi-line content)
+            local version
+            version=$(head -n1 "$marker" | tr -d '\n')
             local desc="${MODULE_DESCRIPTIONS[$module]:-}"
             printf "  ${GREEN}${SYMBOL_CHECK}${NC} ${CYAN}%-12s${NC} v%-10s %s\n" "$module" "$version" "$desc"
             ((count++)) || true
