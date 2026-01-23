@@ -127,7 +127,7 @@ list_keys() {
         fi
         
         echo ""
-        ((count++))
+        ((count++)) || true
     done
     
     echo -e "${DIM}Legend: ${GREEN}●${NC} loaded in ssh-agent  ${DIM}○ not loaded${NC}"
@@ -524,11 +524,11 @@ load_keys() {
         
         if [[ -n "$fingerprint" ]] && ssh-add -l 2>/dev/null | grep -q "$fingerprint"; then
             echo -e "  ${DIM}○ ${key_name} (already loaded)${NC}"
-            ((skipped++))
+            ((skipped++)) || true
         else
             if ssh-add "$key" 2>/dev/null; then
                 echo -e "  ${GREEN}●${NC} ${key_name} ${GREEN}loaded${NC}"
-                ((loaded++))
+                ((loaded++)) || true
             else
                 echo -e "  ${YELLOW}⚠${NC} ${key_name} ${YELLOW}(passphrase required)${NC}"
             fi
