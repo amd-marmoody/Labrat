@@ -712,10 +712,32 @@ run_installation() {
     log_header "Installing Modules"
     
     local failed_modules=()
+    local skipped_modules=()
     local success_count=0
     local installed_modules=()
     
     for module in "${SELECTED_MODULES[@]}"; do
+        local desc="${MODULE_DESCRIPTIONS[$module]:-}"
+        
+        # Per-module confirmation (unless -y flag was used)
+        if [[ "$SKIP_CONFIRMATION" != true ]]; then
+            echo ""
+            echo -e "${BOLD}${module}${NC}: ${desc}"
+            read -rp "Install ${module}? [Y/n/q]: " response
+            
+            case "$response" in
+                n|N)
+                    log_info "Skipping ${module}"
+                    skipped_modules+=("$module")
+                    continue
+                    ;;
+                q|Q)
+                    log_info "Installation cancelled by user"
+                    break
+                    ;;
+            esac
+        fi
+        
         if install_module "$module"; then
             ((++success_count)) || true
             installed_modules+=("$module")
@@ -723,6 +745,12 @@ run_installation() {
             failed_modules+=("$module")
         fi
     done
+    
+    # Report skipped modules
+    if [[ ${#skipped_modules[@]} -gt 0 ]]; then
+        echo ""
+        log_info "Skipped ${#skipped_modules[@]} module(s): ${skipped_modules[*]}"
+    fi
     
     # Handle SSH key prompt for full install
     if [[ "${PROMPT_SSH_KEYS:-}" == "true" ]]; then
