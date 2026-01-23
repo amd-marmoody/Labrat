@@ -530,6 +530,98 @@ unload_keys() {
 }
 
 # ============================================================================
+# Init - Install shell integration
+# ============================================================================
+
+init_shell_integration() {
+    echo ""
+    echo -e "${BOLD}${CYAN}Installing SSH Agent Shell Integration${NC}"
+    echo -e "${DIM}Keys will auto-load on shell startup${NC}"
+    echo ""
+    
+    local installed=0
+    
+    # Bash integration
+    local bashrc="$HOME/.bashrc"
+    if [[ -f "$bashrc" ]]; then
+        if grep -q 'LabRat SSH Agent' "$bashrc"; then
+            echo -e "  ${DIM}○ .bashrc (already configured)${NC}"
+        else
+            {
+                echo ""
+                echo "# LabRat SSH Agent Management"
+                echo "# Starts ssh-agent if not running and adds managed keys"
+                echo 'if [ -z "$SSH_AUTH_SOCK" ]; then'
+                echo '    eval "$(ssh-agent -s)" > /dev/null 2>&1'
+                echo 'fi'
+                echo ''
+                echo '# Add labrat-managed SSH keys (prompts for passphrase on first use)'
+                echo '_labrat_load_ssh_keys() {'
+                echo '    local key_dir="$HOME/.ssh/labrat"'
+                echo '    if [[ -d "$key_dir" ]]; then'
+                echo '        for key in "$key_dir"/*; do'
+                echo '            [[ -f "$key" && "$key" != *.pub ]] || continue'
+                echo '            local fingerprint'
+                echo '            fingerprint=$(ssh-keygen -lf "$key" 2>/dev/null | awk "{print \$2}")'
+                echo '            if [[ -n "$fingerprint" ]] && ! ssh-add -l 2>/dev/null | grep -q "$fingerprint"; then'
+                echo '                ssh-add "$key" 2>/dev/null'
+                echo '            fi'
+                echo '        done'
+                echo '    fi'
+                echo '}'
+                echo '_labrat_load_ssh_keys'
+            } >> "$bashrc"
+            echo -e "  ${GREEN}●${NC} .bashrc ${GREEN}configured${NC}"
+            ((installed++))
+        fi
+    fi
+    
+    # Zsh integration
+    local zshrc="$HOME/.zshrc"
+    if [[ -f "$zshrc" ]]; then
+        if grep -q 'LabRat SSH Agent' "$zshrc"; then
+            echo -e "  ${DIM}○ .zshrc (already configured)${NC}"
+        else
+            {
+                echo ""
+                echo "# LabRat SSH Agent Management"
+                echo "# Starts ssh-agent if not running and adds managed keys"
+                echo 'if [ -z "$SSH_AUTH_SOCK" ]; then'
+                echo '    eval "$(ssh-agent -s)" > /dev/null 2>&1'
+                echo 'fi'
+                echo ''
+                echo '# Add labrat-managed SSH keys (prompts for passphrase on first use)'
+                echo '_labrat_load_ssh_keys() {'
+                echo '    local key_dir="$HOME/.ssh/labrat"'
+                echo '    if [[ -d "$key_dir" ]]; then'
+                echo '        for key in "$key_dir"/*; do'
+                echo '            [[ -f "$key" && "$key" != *.pub ]] || continue'
+                echo '            local fingerprint'
+                echo '            fingerprint=$(ssh-keygen -lf "$key" 2>/dev/null | awk "{print \$2}")'
+                echo '            if [[ -n "$fingerprint" ]] && ! ssh-add -l 2>/dev/null | grep -q "$fingerprint"; then'
+                echo '                ssh-add "$key" 2>/dev/null'
+                echo '            fi'
+                echo '        done'
+                echo '    fi'
+                echo '}'
+                echo '_labrat_load_ssh_keys'
+            } >> "$zshrc"
+            echo -e "  ${GREEN}●${NC} .zshrc ${GREEN}configured${NC}"
+            ((installed++))
+        fi
+    fi
+    
+    echo ""
+    if [[ $installed -gt 0 ]]; then
+        echo -e "${GREEN}✓${NC} Shell integration installed!"
+        echo -e "  Restart your shell or run: ${YELLOW}source ~/.bashrc${NC} (or ~/.zshrc)"
+    else
+        echo -e "${DIM}Shell integration already configured${NC}"
+    fi
+    echo ""
+}
+
+# ============================================================================
 # Help
 # ============================================================================
 
@@ -547,6 +639,7 @@ show_help() {
     echo "  remove <name>     Remove a key"
     echo "  load              Load all keys into ssh-agent"
     echo "  unload            Unload all keys from ssh-agent"
+    echo "  init              Install shell auto-load (keys load on startup)"
     echo "  help              Show this help"
     echo ""
     echo -e "${BOLD}Examples:${NC}"
@@ -584,6 +677,9 @@ case "${1:-}" in
         ;;
     unload)
         unload_keys
+        ;;
+    init|setup)
+        init_shell_integration
         ;;
     help|-h|--help)
         show_help
