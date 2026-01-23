@@ -526,8 +526,8 @@ show_help() {
     echo "  labrat-ssh remove old-key"
     echo ""
     echo -e "${BOLD}Key Storage:${NC}"
-    echo "  Keys are stored in: ${CYAN}~/.ssh/labrat/${NC}"
-    echo "  SSH configs are in: ${CYAN}~/.ssh/config.d/${NC}"
+    echo -e "  Keys are stored in: ${CYAN}~/.ssh/labrat/${NC}"
+    echo -e "  SSH configs are in: ${CYAN}~/.ssh/config.d/${NC}"
     echo ""
 }
 
