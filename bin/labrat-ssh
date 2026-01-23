@@ -25,10 +25,37 @@ DIM='\033[2m'
 
 # Ensure directories exist
 ensure_directories() {
-    mkdir -p "$LABRAT_SSH_DIR" 2>/dev/null || true
+    # Check if ~/.ssh is writable
+    if [[ -d "$HOME/.ssh" ]] && [[ ! -w "$HOME/.ssh" ]]; then
+        echo ""
+        echo -e "${RED}╔════════════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${RED}║${NC} ${BOLD}⚠️  PERMISSION ERROR${NC}                                          ${RED}║${NC}"
+        echo -e "${RED}╠════════════════════════════════════════════════════════════════╣${NC}"
+        echo -e "${RED}║${NC}  Cannot write to ~/.ssh directory.                              ${RED}║${NC}"
+        echo -e "${RED}║${NC}                                                                ${RED}║${NC}"
+        echo -e "${RED}║${NC}  Current owner: $(stat -c '%U:%G' "$HOME/.ssh" 2>/dev/null || echo 'unknown')                                          ${RED}║${NC}"
+        echo -e "${RED}║${NC}                                                                ${RED}║${NC}"
+        echo -e "${RED}║${NC}  Fix with:                                                     ${RED}║${NC}"
+        echo -e "${RED}║${NC}  ${YELLOW}sudo chown -R \$(whoami):\$(whoami) ~/.ssh && chmod 700 ~/.ssh${NC}  ${RED}║${NC}"
+        echo -e "${RED}╚════════════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+        return 1
+    fi
+    
+    if ! mkdir -p "$LABRAT_SSH_DIR" 2>/dev/null; then
+        echo -e "${RED}Error:${NC} Cannot create $LABRAT_SSH_DIR"
+        echo -e "Check permissions on ~/.ssh directory"
+        return 1
+    fi
     chmod 700 "$LABRAT_SSH_DIR" 2>/dev/null || true
-    mkdir -p "$LABRAT_SSH_CONFIG_D" 2>/dev/null || true
+    
+    if ! mkdir -p "$LABRAT_SSH_CONFIG_D" 2>/dev/null; then
+        echo -e "${RED}Error:${NC} Cannot create $LABRAT_SSH_CONFIG_D"
+        return 1
+    fi
     chmod 700 "$LABRAT_SSH_CONFIG_D" 2>/dev/null || true
+    
+    return 0
 }
 
 # ============================================================================
@@ -538,8 +565,7 @@ show_help() {
 # Main
 # ============================================================================
 
-ensure_directories
-
+# Only ensure directories for commands that need them
 case "${1:-}" in
     list|ls|"")
         list_keys
