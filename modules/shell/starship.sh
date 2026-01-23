@@ -578,6 +578,9 @@ setup_shell_integration() {
                 echo '# Toggle starship prompt on/off'
                 echo 'function starship-off; set -gx STARSHIP_DISABLE 1; exec fish; end'
                 echo 'function starship-on; set -e STARSHIP_DISABLE; exec fish; end'
+                echo ''
+                echo '# Reload starship after preset change'
+                echo 'function starship-reload; exec fish; end'
             } >> "$fish_config"
         fi
     fi
