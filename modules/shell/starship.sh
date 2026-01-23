@@ -6,6 +6,19 @@
 
 # Module metadata
 STARSHIP_INSTALL_URL="https://starship.rs/install.sh"
+STARSHIP_PRESETS=(
+    "labrat"
+    "nerd-font-symbols"
+    "bracketed-segments"
+    "plain-text"
+    "pastel-powerline"
+    "tokyo-night"
+    "gruvbox-rainbow"
+    "jetpack"
+    "pure"
+    "no-runtime"
+    "minimal"
+)
 
 # ============================================================================
 # Installation
@@ -106,30 +119,144 @@ install_starship_binary() {
 }
 
 # ============================================================================
+# Preset Deployment
+# ============================================================================
+
+deploy_starship_presets() {
+    log_step "Deploying starship presets..."
+    
+    # Target directory in user's data dir
+    local target_dir="${LABRAT_DATA_DIR}/configs/starship/presets"
+    
+    # Create target directory
+    ensure_dir "$target_dir"
+    
+    # Source directory - derive from LABRAT_CONFIGS_DIR or script location
+    local source_dir=""
+    if [[ -n "${LABRAT_CONFIGS_DIR:-}" ]] && [[ -d "${LABRAT_CONFIGS_DIR}/starship/presets" ]]; then
+        source_dir="${LABRAT_CONFIGS_DIR}/starship/presets"
+    else
+        # Fall back to relative path from this script
+        local script_dir
+        script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        source_dir="$(dirname "$(dirname "$script_dir")")/configs/starship/presets"
+    fi
+    
+    # Copy all presets
+    if [[ -d "$source_dir" ]]; then
+        cp -r "$source_dir"/*.toml "$target_dir/" 2>/dev/null || true
+        log_success "Starship presets deployed to $target_dir"
+    else
+        log_warn "Preset source directory not found: $source_dir"
+    fi
+    
+    # Make starship-preset script available
+    local bin_source=""
+    if [[ -n "${LABRAT_CONFIGS_DIR:-}" ]]; then
+        bin_source="$(dirname "${LABRAT_CONFIGS_DIR}")/bin/starship-preset"
+    else
+        local script_dir
+        script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        bin_source="$(dirname "$(dirname "$script_dir")")/bin/starship-preset"
+    fi
+    
+    if [[ -f "$bin_source" ]]; then
+        cp "$bin_source" "${LABRAT_BIN_DIR}/"
+        chmod +x "${LABRAT_BIN_DIR}/starship-preset"
+        log_success "starship-preset script installed"
+    fi
+}
+
+select_starship_preset() {
+    log_step "Selecting starship preset..."
+    
+    local preset_dir="${LABRAT_DATA_DIR}/configs/starship/presets"
+    local config_target="$HOME/.config/starship.toml"
+    local preset_marker="${LABRAT_DATA_DIR}/current-starship-preset"
+    
+    # List available presets
+    echo ""
+    echo -e "${BOLD}${CYAN}Available Starship Presets:${NC}"
+    echo ""
+    local i=1
+    for preset in "${STARSHIP_PRESETS[@]}"; do
+        local desc=""
+        case "$preset" in
+            labrat) desc="(LabRat branded with 🐀)" ;;
+            nerd-font-symbols) desc="(Full Nerd Font glyphs)" ;;
+            bracketed-segments) desc="([module] style)" ;;
+            plain-text) desc="(ASCII-only, no special chars)" ;;
+            pastel-powerline) desc="(Powerline with pastel colors)" ;;
+            tokyo-night) desc="(Tokyo Night color scheme)" ;;
+            gruvbox-rainbow) desc="(Gruvbox with rainbow)" ;;
+            jetpack) desc="(Compact, informative)" ;;
+            pure) desc="(Like Pure ZSH prompt)" ;;
+            no-runtime) desc="(Hides runtime versions)" ;;
+            minimal) desc="(Ultra-minimal prompt)" ;;
+        esac
+        echo "  $i) $preset $desc"
+        ((i++))
+    done
+    echo ""
+    
+    local choice
+    read -p "Select preset [1-${#STARSHIP_PRESETS[@]}] (default: 1 - labrat): " choice
+    choice=${choice:-1}
+    
+    # Validate choice
+    if ! [[ "$choice" =~ ^[0-9]+$ ]] || [[ "$choice" -lt 1 ]] || [[ "$choice" -gt ${#STARSHIP_PRESETS[@]} ]]; then
+        log_warn "Invalid choice, using default (labrat)"
+        choice=1
+    fi
+    
+    local selected_preset="${STARSHIP_PRESETS[$((choice-1))]}"
+    local preset_file="${preset_dir}/${selected_preset}.toml"
+    
+    if [[ -f "$preset_file" ]]; then
+        # Remove existing config if not a symlink
+        if [[ -f "$config_target" ]] && [[ ! -L "$config_target" ]]; then
+            backup_file "$config_target"
+        fi
+        
+        # Create symlink
+        mkdir -p "$(dirname "$config_target")"
+        ln -sf "$preset_file" "$config_target"
+        
+        # Save preference
+        echo "$selected_preset" > "$preset_marker"
+        
+        log_success "Applied starship preset: $selected_preset"
+    else
+        log_warn "Preset file not found: $preset_file"
+        log_info "Falling back to default config"
+        create_default_starship_config "$config_target"
+    fi
+}
+
+# ============================================================================
 # Configuration Deployment
 # ============================================================================
 
 deploy_starship_config() {
-    local config_source="${LABRAT_CONFIGS_DIR}/starship/starship.toml"
-    local config_dir="$HOME/.config"
-    local config_target="$config_dir/starship.toml"
+    # Deploy presets first
+    deploy_starship_presets
     
-    log_step "Deploying starship configuration..."
-    
-    ensure_dir "$config_dir"
-    
-    # Backup existing config
-    if [[ -f "$config_target" ]] && [[ ! -L "$config_target" ]]; then
-        backup_file "$config_target"
-    fi
-    
-    # Create symlink or copy config
-    if [[ -f "$config_source" ]]; then
-        safe_symlink "$config_source" "$config_target"
-        log_success "starship config deployed"
+    # Let user select a preset
+    if [[ "${SKIP_CONFIRMATION:-false}" != "true" ]] && [[ -t 0 ]]; then
+        select_starship_preset
     else
-        log_warn "Config source not found, creating default config"
-        create_default_starship_config "$config_target"
+        # Non-interactive: use labrat preset by default
+        local preset_dir="${LABRAT_DATA_DIR}/configs/starship/presets"
+        local config_target="$HOME/.config/starship.toml"
+        local preset_file="${preset_dir}/labrat.toml"
+        
+        if [[ -f "$preset_file" ]]; then
+            mkdir -p "$(dirname "$config_target")"
+            ln -sf "$preset_file" "$config_target"
+            log_success "Applied default starship preset: labrat"
+        else
+            create_default_starship_config "$config_target"
+        fi
     fi
 }
 
@@ -401,6 +528,14 @@ setup_shell_integration() {
                 echo '        echo "Starship not installed."'
                 echo '    fi'
                 echo '}'
+                echo ''
+                echo '# Reload starship after preset change'
+                echo 'starship-reload() {'
+                echo '    if command -v starship &>/dev/null; then'
+                echo '        eval "$(starship init bash)"'
+                echo '        echo "Starship reloaded."'
+                echo '    fi'
+                echo '}'
             } >> "$bashrc"
         fi
     fi
@@ -421,6 +556,9 @@ setup_shell_integration() {
                 echo '# Toggle starship prompt on/off'
                 echo 'starship-off() { export STARSHIP_DISABLE=1; exec zsh; }'
                 echo 'starship-on() { unset STARSHIP_DISABLE; exec zsh; }'
+                echo ''
+                echo '# Reload starship after preset change'
+                echo 'starship-reload() { exec zsh; }'
             } >> "$zshrc"
         fi
     fi
@@ -440,6 +578,9 @@ setup_shell_integration() {
                 echo '# Toggle starship prompt on/off'
                 echo 'function starship-off; set -gx STARSHIP_DISABLE 1; exec fish; end'
                 echo 'function starship-on; set -e STARSHIP_DISABLE; exec fish; end'
+                echo ''
+                echo '# Reload starship after preset change'
+                echo 'function starship-reload; exec fish; end'
             } >> "$fish_config"
         fi
     fi
