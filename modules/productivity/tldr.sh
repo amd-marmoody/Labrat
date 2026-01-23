@@ -49,11 +49,12 @@ install_tldr_from_github() {
         return 1
     fi
     
+    # tealdeer uses format: tealdeer-linux-x86_64-musl
     local arch_suffix=""
     case "$ARCH" in
-        x86_64|amd64) arch_suffix="x86_64-unknown-linux-musl" ;;
-        aarch64|arm64) arch_suffix="aarch64-unknown-linux-musl" ;;
-        armv7l|armhf) arch_suffix="armv7-unknown-linux-musleabihf" ;;
+        x86_64|amd64) arch_suffix="linux-x86_64-musl" ;;
+        aarch64|arm64) arch_suffix="linux-arm-musleabi" ;;
+        armv7l|armhf) arch_suffix="linux-armv7-musleabihf" ;;
         *) log_error "Unsupported architecture: $ARCH"; return 1 ;;
     esac
     

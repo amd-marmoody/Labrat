@@ -50,16 +50,17 @@ install_nerdfonts() {
 # ============================================================================
 
 select_nerd_font() {
-    echo ""
-    echo -e "${BOLD}Available Nerd Fonts:${NC}"
-    echo ""
+    # Print menu to stderr so it doesn't get captured
+    echo "" >&2
+    echo -e "${BOLD}Available Nerd Fonts:${NC}" >&2
+    echo "" >&2
     
     local i=1
     for font in "${NERDFONTS_OPTIONS[@]}"; do
-        echo "  $i) $font"
+        echo "  $i) $font" >&2
         ((i++)) || true
     done
-    echo ""
+    echo "" >&2
     
     read -p "Select font [1-${#NERDFONTS_OPTIONS[@]}] (default: 1 - JetBrainsMono): " choice
     

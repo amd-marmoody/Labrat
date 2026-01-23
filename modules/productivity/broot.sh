@@ -56,7 +56,9 @@ install_broot_from_github() {
         *) log_error "Unsupported architecture: $ARCH"; return 1 ;;
     esac
     
-    local download_url="https://github.com/${BROOT_GITHUB_REPO}/releases/download/${latest_version}/broot_${latest_version}.zip"
+    # Remove 'v' prefix from version for filename (release tag is v1.x.x but file is broot_1.x.x.zip)
+    local version_no_v="${latest_version#v}"
+    local download_url="https://github.com/${BROOT_GITHUB_REPO}/releases/download/${latest_version}/broot_${version_no_v}.zip"
     local temp_file="${LABRAT_CACHE_DIR}/broot.zip"
     local extract_dir="${LABRAT_CACHE_DIR}/broot"
     
