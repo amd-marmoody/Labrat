@@ -284,7 +284,7 @@ show_banner() {
                                                       
 EOF
     echo -e "${NC}"
-    echo -e "    ${DIM}Your trusty environment for every test cage${NC}"
+    echo -e "    ${DIM}Just a rat in a cage${NC}"
     echo ""
 }
 

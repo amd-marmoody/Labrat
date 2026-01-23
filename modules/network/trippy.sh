@@ -51,7 +51,9 @@ install_trippy_from_github() {
         *) log_error "Unsupported architecture: $ARCH"; return 1 ;;
     esac
     
-    local download_url="https://github.com/${TRIPPY_GITHUB_REPO}/releases/download/${latest_version}/trippy-${latest_version}-${arch_suffix}.tar.gz"
+    # Strip 'v' prefix from version for filename
+    local version_no_v="${latest_version#v}"
+    local download_url="https://github.com/${TRIPPY_GITHUB_REPO}/releases/download/${latest_version}/trippy-${version_no_v}-${arch_suffix}.tar.gz"
     local temp_file="${LABRAT_CACHE_DIR}/trippy.tar.gz"
     local extract_dir="${LABRAT_CACHE_DIR}/trippy"
     
@@ -59,7 +61,7 @@ install_trippy_from_github() {
     
     if download_file "$download_url" "$temp_file" "Downloading trippy"; then
         tar -xzf "$temp_file" -C "$extract_dir"
-        cp "$extract_dir/trippy-${latest_version}-${arch_suffix}/trip" "$LABRAT_BIN_DIR/" 2>/dev/null || \
+        cp "$extract_dir/trippy-${version_no_v}-${arch_suffix}/trip" "$LABRAT_BIN_DIR/" 2>/dev/null || \
         cp "$extract_dir/trip" "$LABRAT_BIN_DIR/" 2>/dev/null || \
         find "$extract_dir" -name "trip" -type f -exec cp {} "$LABRAT_BIN_DIR/" \;
         chmod +x "$LABRAT_BIN_DIR/trip"
