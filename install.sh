@@ -511,22 +511,18 @@ interactive_preset_info() {
 }
 
 interactive_ssh_keys() {
-    clear
-    show_banner
-    
-    echo -e "${BOLD}SSH Key Management${NC}"
-    echo -e "${DIM}$(repeat_char "─" 50)${NC}"
-    echo ""
-    echo "Manage SSH keys for remote authentication."
-    echo "Keys are stored securely in ~/.ssh/labrat/"
-    echo ""
-    
-    # Check if labrat-ssh is available
+    # Check if labrat-ssh is available and run it
     if command -v labrat-ssh &>/dev/null; then
         labrat-ssh
     elif [[ -x "${LABRAT_ROOT}/bin/labrat-ssh" ]]; then
         "${LABRAT_ROOT}/bin/labrat-ssh"
     else
+        clear
+        show_banner
+        
+        echo -e "${BOLD}SSH Key Management${NC}"
+        echo -e "${DIM}$(repeat_char "─" 50)${NC}"
+        echo ""
         echo -e "${YELLOW}labrat-ssh not installed.${NC}"
         echo ""
         read -rp "Install SSH key management module? [Y/n]: " confirm
@@ -534,11 +530,9 @@ interactive_ssh_keys() {
             install_module "ssh-keys"
             echo ""
             echo "Run 'labrat-ssh' to manage your keys."
+            read -rp "Press Enter to continue..."
         fi
     fi
-    
-    echo ""
-    read -rp "Press Enter to continue..."
 }
 
 interactive_custom_select() {
