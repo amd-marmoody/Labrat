@@ -25,6 +25,8 @@ LABRAT_CONFIGS_DIR="${LABRAT_ROOT}/configs"
 source "${LABRAT_LIB_DIR}/common.sh"
 # shellcheck source=./lib/package_manager.sh
 source "${LABRAT_LIB_DIR}/package_manager.sh"
+# shellcheck source=./lib/shell_integration.sh
+source "${LABRAT_LIB_DIR}/shell_integration.sh"
 
 # ============================================================================
 # Configuration
@@ -710,6 +712,9 @@ confirm_installation() {
 
 run_installation() {
     log_header "Installing Modules"
+    
+    # Set up shell integration first (PATH, backups, hooks)
+    setup_shell_integration
     
     local failed_modules=()
     local skipped_modules=()
