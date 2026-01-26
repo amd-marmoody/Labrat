@@ -28,6 +28,7 @@ install_starship() {
     log_step "Installing starship prompt..."
     
     local installed_version=""
+    local need_binary_install=true
     
     # Check if already installed
     if command_exists starship; then
@@ -35,23 +36,21 @@ install_starship() {
         log_info "starship already installed (version: $installed_version)"
         
         if ! confirm "Reinstall/update starship?" "n"; then
-            deploy_starship_config
-            mark_module_installed "starship" "$installed_version"
-            return 0
+            need_binary_install=false
         fi
     fi
     
-    # Install starship
-    install_starship_binary
+    # Install binary if needed
+    if [[ "$need_binary_install" == true ]]; then
+        install_starship_binary
+        installed_version=$(starship --version | awk '{print $2}')
+        log_info "starship version: $installed_version"
+    fi
     
-    # Get installed version
-    installed_version=$(starship --version | awk '{print $2}')
-    log_info "starship version: $installed_version"
-    
-    # Deploy configuration
+    # Deploy configuration (always)
     deploy_starship_config
     
-    # Setup shell integration
+    # Setup shell integration (always - this is crucial!)
     setup_starship_shell_integration
     
     # Mark as installed
