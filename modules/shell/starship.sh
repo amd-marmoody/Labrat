@@ -607,17 +607,36 @@ uninstall_starship() {
     
     # Remove binary
     if [[ -f "$LABRAT_BIN_DIR/starship" ]]; then
-        rm "$LABRAT_BIN_DIR/starship"
+        rm -f "$LABRAT_BIN_DIR/starship"
+        log_debug "Removed starship binary"
     fi
     
-    # Remove config
-    if [[ -L "$HOME/.config/starship.toml" ]]; then
-        rm "$HOME/.config/starship.toml"
+    # Remove starship-preset script
+    if [[ -f "$LABRAT_BIN_DIR/starship-preset" ]]; then
+        rm -f "$LABRAT_BIN_DIR/starship-preset"
+        log_debug "Removed starship-preset script"
     fi
     
-    # Remove installed marker
-    rm -f "${LABRAT_DATA_DIR}/installed/starship"
+    # Remove config symlink or file
+    if [[ -L "$HOME/.config/starship.toml" ]] || [[ -f "$HOME/.config/starship.toml" ]]; then
+        rm -f "$HOME/.config/starship.toml"
+        log_debug "Removed starship config"
+    fi
     
-    log_success "starship removed"
-    log_info "Note: Shell integration lines may need to be manually removed from shell configs"
+    # Remove deployed presets
+    if [[ -d "${LABRAT_DATA_DIR}/configs/starship" ]]; then
+        rm -rf "${LABRAT_DATA_DIR}/configs/starship"
+        log_debug "Removed starship presets"
+    fi
+    
+    # Remove preset marker
+    rm -f "${LABRAT_DATA_DIR}/current-starship-preset"
+    
+    # Remove shell integration using new API
+    if is_shell_module_registered "starship" 2>/dev/null; then
+        unregister_shell_module "starship"
+    fi
+    
+    log_success "starship uninstalled"
+    return 0
 }

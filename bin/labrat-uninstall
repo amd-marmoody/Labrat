@@ -11,7 +11,8 @@
 #   labrat-uninstall --full             # Complete removal including data
 #
 
-set -euo pipefail
+set -uo pipefail
+# Note: We don't use set -e because we want to handle errors gracefully
 
 # ============================================================================
 # Script Location and Library Loading
