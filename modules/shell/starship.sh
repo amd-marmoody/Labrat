@@ -495,12 +495,74 @@ STARSHIP_CONFIG
 setup_starship_shell_integration() {
     log_step "Setting up starship shell integration..."
     
-    # Use centralized shell integration
-    # This adds to ~/.config/labrat/shellrc.sh which is sourced early
-    add_shell_integration "starship" 'eval "$(starship init bash)"' "Cross-shell prompt"
+    # Add starship init for each shell
+    add_shell_integration "starship" \
+        'eval "$(starship init bash)"' \
+        'eval "$(starship init zsh)"' \
+        'starship init fish | source' \
+        "Cross-shell prompt"
+    
+    # Add toggle and reload functions
+    local bash_funcs='
+# Toggle starship prompt on/off
+starship-off() {
+    export STARSHIP_DISABLE=1
+    unset STARSHIP_SESSION_KEY
+    PROMPT_COMMAND=""
+    PS1="\u@\h:\w\$ "
+    echo "Starship disabled."
+}
+
+starship-on() {
+    unset STARSHIP_DISABLE
+    if command -v starship &>/dev/null; then
+        eval "$(starship init bash)"
+        # Reinitialize zoxide after starship (must be last)
+        command -v zoxide &>/dev/null && eval "$(zoxide init bash)"
+        echo "Starship enabled."
+    else
+        echo "Starship not installed."
+    fi
+}
+
+# Reload starship after preset change
+starship-reload() {
+    if command -v starship &>/dev/null; then
+        eval "$(starship init bash)"
+        echo "Starship reloaded."
+    fi
+}'
+
+    local zsh_funcs='
+# Toggle starship prompt on/off
+starship-off() { export STARSHIP_DISABLE=1; exec zsh; }
+starship-on() { unset STARSHIP_DISABLE; exec zsh; }
+
+# Reload starship after preset change
+starship-reload() { exec zsh; }'
+
+    local fish_funcs='
+# Toggle starship prompt on/off
+function starship-off
+    set -gx STARSHIP_DISABLE 1
+    exec fish
+end
+
+function starship-on
+    set -e STARSHIP_DISABLE
+    exec fish
+end
+
+# Reload starship after preset change
+function starship-reload
+    exec fish
+end'
+
+    add_shell_functions "starship" "$bash_funcs" "$zsh_funcs" "$fish_funcs"
     
     log_success "Starship shell integration configured"
-    log_info "Starship will initialize on next shell session"
+    log_info "Toggle: ${BOLD}starship-on${NC} / ${BOLD}starship-off${NC}"
+    log_info "After preset change: ${BOLD}starship-reload${NC}"
 }
 
 # ============================================================================
