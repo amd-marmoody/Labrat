@@ -503,59 +503,115 @@ setup_starship_shell_integration() {
         "Cross-shell prompt"
     
     # Add toggle and reload functions
+    # Note: starship-off disables starship but keeps it in memory.
+    # To see the change immediately, use starship-off followed by pressing Enter.
     local bash_funcs='
-# Toggle starship prompt on/off
+# Disable starship prompt (effective immediately)
 starship-off() {
     export STARSHIP_DISABLE=1
-    unset STARSHIP_SESSION_KEY
-    PROMPT_COMMAND=""
-    PS1="\u@\h:\w\$ "
-    echo "Starship disabled."
+    # Restore basic PS1 (starship will skip rendering when disabled)
+    if [[ -n "$_STARSHIP_ORIG_PS1" ]]; then
+        PS1="$_STARSHIP_ORIG_PS1"
+    else
+        PS1="\[\e[32m\]\u@\h\[\e[m\]:\[\e[34m\]\w\[\e[m\]\$ "
+    fi
+    echo "Starship disabled. Run starship-on to re-enable."
 }
 
+# Enable starship prompt (reinitializes starship completely)
 starship-on() {
     unset STARSHIP_DISABLE
+    # Save current PS1 before starship takes over
+    export _STARSHIP_ORIG_PS1="${_STARSHIP_ORIG_PS1:-$PS1}"
     if command -v starship &>/dev/null; then
-        eval "$(starship init bash)"
-        # Reinitialize zoxide after starship (must be last)
-        command -v zoxide &>/dev/null && eval "$(zoxide init bash)"
-        echo "Starship enabled."
+        # Reinitialize starship completely
+        eval "$(starship init bash --print-full-init)"
+        # Set the ready flag so prompt updates
+        STARSHIP_PREEXEC_READY=true
+        echo "Starship enabled!"
     else
-        echo "Starship not installed."
+        echo "Error: starship not found in PATH"
+        return 1
     fi
 }
 
-# Reload starship after preset change
+# Reload starship after preset/config change
 starship-reload() {
     if command -v starship &>/dev/null; then
-        eval "$(starship init bash)"
-        echo "Starship reloaded."
+        eval "$(starship init bash --print-full-init)"
+        STARSHIP_PREEXEC_READY=true
+        echo "Starship configuration reloaded!"
+    else
+        echo "Error: starship not found in PATH"
+        return 1
     fi
 }'
 
     local zsh_funcs='
-# Toggle starship prompt on/off
-starship-off() { export STARSHIP_DISABLE=1; exec zsh; }
-starship-on() { unset STARSHIP_DISABLE; exec zsh; }
+# Disable starship prompt
+starship-off() {
+    export STARSHIP_DISABLE=1
+    # Force prompt refresh
+    PROMPT="%n@%m:%~%# "
+    zle && zle reset-prompt
+    echo "Starship disabled. Run starship-on to re-enable."
+}
 
-# Reload starship after preset change
-starship-reload() { exec zsh; }'
+# Enable starship prompt
+starship-on() {
+    unset STARSHIP_DISABLE
+    if (( $+commands[starship] )); then
+        eval "$(starship init zsh)"
+        echo "Starship enabled!"
+    else
+        echo "Error: starship not found in PATH"
+        return 1
+    fi
+}
+
+# Reload starship after preset/config change
+starship-reload() {
+    if (( $+commands[starship] )); then
+        eval "$(starship init zsh)"
+        echo "Starship configuration reloaded!"
+    else
+        echo "Error: starship not found in PATH"
+        return 1
+    fi
+}'
 
     local fish_funcs='
-# Toggle starship prompt on/off
+# Disable starship prompt
 function starship-off
     set -gx STARSHIP_DISABLE 1
-    exec fish
+    # Set basic prompt
+    function fish_prompt
+        echo (whoami)"@"(hostname)":"(pwd)" \$ "
+    end
+    echo "Starship disabled. Run starship-on to re-enable."
 end
 
+# Enable starship prompt
 function starship-on
     set -e STARSHIP_DISABLE
-    exec fish
+    if command -v starship &>/dev/null
+        starship init fish | source
+        echo "Starship enabled!"
+    else
+        echo "Error: starship not found in PATH"
+        return 1
+    end
 end
 
-# Reload starship after preset change
+# Reload starship after preset/config change
 function starship-reload
-    exec fish
+    if command -v starship &>/dev/null
+        starship init fish | source
+        echo "Starship configuration reloaded!"
+    else
+        echo "Error: starship not found in PATH"
+        return 1
+    end
 end'
 
     add_shell_functions "starship" "$bash_funcs" "$zsh_funcs" "$fish_funcs"
