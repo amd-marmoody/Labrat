@@ -502,48 +502,26 @@ setup_starship_shell_integration() {
         "Cross-shell prompt"
     
     # Add toggle and reload functions
-    # Note: starship-off disables starship but keeps it in memory.
-    # To see the change immediately, use starship-off followed by pressing Enter.
+    # These restart the shell to ensure clean state
     local bash_funcs='
-# Disable starship prompt (effective immediately)
+# Disable starship prompt (restarts shell with STARSHIP_DISABLE=1)
 starship-off() {
+    echo "Disabling starship and restarting shell..."
     export STARSHIP_DISABLE=1
-    # Restore basic PS1 (starship will skip rendering when disabled)
-    if [[ -n "$_STARSHIP_ORIG_PS1" ]]; then
-        PS1="$_STARSHIP_ORIG_PS1"
-    else
-        PS1="\[\e[32m\]\u@\h\[\e[m\]:\[\e[34m\]\w\[\e[m\]\$ "
-    fi
-    echo "Starship disabled. Run starship-on to re-enable."
+    exec bash
 }
 
-# Enable starship prompt (reinitializes starship completely)
+# Enable starship prompt (restarts shell without STARSHIP_DISABLE)
 starship-on() {
+    echo "Enabling starship and restarting shell..."
     unset STARSHIP_DISABLE
-    # Save current PS1 before starship takes over
-    export _STARSHIP_ORIG_PS1="${_STARSHIP_ORIG_PS1:-$PS1}"
-    if command -v starship &>/dev/null; then
-        # Reinitialize starship completely
-        eval "$(starship init bash --print-full-init)"
-        # Set the ready flag so prompt updates
-        STARSHIP_PREEXEC_READY=true
-        echo "Starship enabled!"
-    else
-        echo "Error: starship not found in PATH"
-        return 1
-    fi
+    exec bash
 }
 
-# Reload starship after preset/config change
+# Reload starship after preset/config change (restarts shell)
 starship-reload() {
-    if command -v starship &>/dev/null; then
-        eval "$(starship init bash --print-full-init)"
-        STARSHIP_PREEXEC_READY=true
-        echo "Starship configuration reloaded!"
-    else
-        echo "Error: starship not found in PATH"
-        return 1
-    fi
+    echo "Reloading starship configuration..."
+    exec bash
 }'
 
     local zsh_funcs='
