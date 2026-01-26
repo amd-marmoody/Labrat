@@ -1,0 +1,1049 @@
+#!/usr/bin/env bash
+#
+# LabRat Menu - Interactive Shell Configuration Utility
+# Hotkey: Alt+L
+#
+# Features:
+#   - Toggle shell integrations (starship, atuin, zoxide, etc.)
+#   - Change themes (tmux, starship presets)
+#   - Manage SSH keys
+#   - Quick install/uninstall modules
+#   - Edit configuration files
+#
+
+set -uo pipefail
+
+# ============================================================================
+# Script Location and Library Loading
+# ============================================================================
+
+# Find LabRat root
+if [[ -n "${LABRAT_ROOT:-}" ]]; then
+    LABRAT_ROOT="$LABRAT_ROOT"
+elif [[ -d "$HOME/.labrat" ]]; then
+    LABRAT_ROOT="$HOME/.labrat"
+elif [[ -d "$(dirname "${BASH_SOURCE[0]}")/.." ]]; then
+    LABRAT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+else
+    echo "Error: Cannot find LabRat installation"
+    exit 1
+fi
+
+LABRAT_LIB_DIR="${LABRAT_ROOT}/lib"
+LABRAT_BIN_DIR="${LABRAT_ROOT}/bin"
+
+# Source libraries
+source "${LABRAT_LIB_DIR}/colors.sh"
+source "${LABRAT_LIB_DIR}/common.sh"
+source "${LABRAT_LIB_DIR}/state.sh"
+source "${LABRAT_LIB_DIR}/menu_helpers.sh"
+source "${LABRAT_LIB_DIR}/manifest.sh"
+
+# ============================================================================
+# Global State
+# ============================================================================
+
+NEEDS_SHELL_RELOAD=false
+MENU_RUNNING=true
+
+# ============================================================================
+# Status Display
+# ============================================================================
+
+get_current_status() {
+    local shell_name="${SHELL##*/}"
+    
+    # Prompt
+    local prompt_status
+    if is_module_enabled "starship" && command -v starship &>/dev/null; then
+        prompt_status="starship ($(get_current_starship_preset))"
+    else
+        prompt_status="default"
+    fi
+    
+    # History
+    local history_status
+    if is_module_enabled "atuin" && command -v atuin &>/dev/null; then
+        history_status="atuin"
+    else
+        history_status="default"
+    fi
+    
+    # tmux
+    local tmux_status
+    if [[ -n "${TMUX:-}" ]]; then
+        tmux_status="$(get_current_tmux_theme)"
+    else
+        tmux_status="not in tmux"
+    fi
+    
+    # zoxide
+    local zoxide_status
+    if is_module_enabled "zoxide" && command -v zoxide &>/dev/null; then
+        zoxide_status="ON"
+    else
+        zoxide_status="OFF"
+    fi
+    
+    echo "Shell: $shell_name │ Prompt: $prompt_status │ History: $history_status"
+    echo "tmux: $tmux_status │ zoxide: $zoxide_status"
+}
+
+# ============================================================================
+# Main Menu
+# ============================================================================
+
+show_main_menu() {
+    show_menu_header "Shell Configuration"
+    
+    local width=70
+    
+    # Status section
+    draw_box_top "🐀 LabRat Shell Configuration" "$width" "$CYAN"
+    draw_box_line "" "$width" "$CYAN"
+    draw_box_line "${BOLD}CURRENT STATUS${NC}" "$width" "$CYAN"
+    draw_box_line "$(repeat_char "─" 66)" "$width" "$CYAN"
+    
+    # Get status lines
+    local status1 status2
+    status1=$(get_current_status | head -1)
+    status2=$(get_current_status | tail -1)
+    draw_box_line "$status1" "$width" "$CYAN"
+    draw_box_line "$status2" "$width" "$CYAN"
+    draw_box_line "" "$width" "$CYAN"
+    
+    draw_box_separator "$width" "$CYAN"
+    draw_box_line "" "$width" "$CYAN"
+    draw_box_line "${BOLD}[1]${NC} Shell Integrations       Toggle modules on/off" "$width" "$CYAN"
+    draw_box_line "${BOLD}[2]${NC} Starship Prompt          Change preset, toggle" "$width" "$CYAN"
+    draw_box_line "${BOLD}[3]${NC} tmux Theme               Switch themes" "$width" "$CYAN"
+    draw_box_line "${BOLD}[4]${NC} History Manager          atuin settings" "$width" "$CYAN"
+    draw_box_line "${BOLD}[5]${NC} Navigation               zoxide, fzf settings" "$width" "$CYAN"
+    draw_box_line "${BOLD}[6]${NC} SSH Keys                 Manage SSH keys" "$width" "$CYAN"
+    draw_box_line "${BOLD}[7]${NC} Install/Uninstall        Quick module management" "$width" "$CYAN"
+    draw_box_line "${BOLD}[8]${NC} Edit Configs             Open config files" "$width" "$CYAN"
+    draw_box_line "${BOLD}[9]${NC} Status Overview          Full diagnostic" "$width" "$CYAN"
+    draw_box_line "${BOLD}[0]${NC} Startup Summary          Configure startup display" "$width" "$CYAN"
+    draw_box_line "" "$width" "$CYAN"
+    draw_box_line "${BOLD}[r]${NC} Reload Shell   ${BOLD}[q]${NC} Quit" "$width" "$CYAN"
+    draw_box_line "" "$width" "$CYAN"
+    draw_box_bottom "$width" "$CYAN"
+    
+    echo ""
+    local choice
+    read -rp "$(echo -e "${CYAN}>${NC} Enter selection: ")" choice
+    
+    case "$choice" in
+        1) menu_shell_integrations ;;
+        2) menu_starship ;;
+        3) menu_tmux_theme ;;
+        4) menu_history ;;
+        5) menu_navigation ;;
+        6) menu_ssh_keys ;;
+        7) menu_install_uninstall ;;
+        8) menu_edit_configs ;;
+        9) menu_status_overview ;;
+        0) menu_startup_summary ;;
+        r|R) do_shell_reload ;;
+        q|Q) 
+            MENU_RUNNING=false
+            maybe_reload_shell "$NEEDS_SHELL_RELOAD"
+            ;;
+        *) 
+            echo -e "${YELLOW}Invalid selection${NC}"
+            sleep 1
+            ;;
+    esac
+}
+
+# ============================================================================
+# Shell Integrations Menu
+# ============================================================================
+
+menu_shell_integrations() {
+    local toggleable_modules=(starship atuin zoxide fzf mise direnv thefuck broot)
+    
+    while true; do
+        show_menu_header "Shell Integrations"
+        
+        local width=65
+        draw_box_top "Shell Integrations - Toggle On/Off" "$width" "$GREEN"
+        draw_box_line "" "$width" "$GREEN"
+        
+        local i=1
+        for module in "${toggleable_modules[@]}"; do
+            local is_installed=false
+            local is_enabled=false
+            local status_text
+            
+            if command -v "$module" &>/dev/null || is_module_installed "$module" 2>/dev/null; then
+                is_installed=true
+                if is_module_enabled "$module"; then
+                    is_enabled=true
+                    status_text="${GREEN}● ON ${NC}"
+                else
+                    status_text="${DIM}○ OFF${NC}"
+                fi
+            else
+                status_text="${DIM}○ not installed${NC}"
+            fi
+            
+            local desc
+            desc=$(get_module_description "$module")
+            local line
+            line=$(printf "${BOLD}[%d]${NC} %-12s %b  %s" "$i" "$module" "$status_text" "$desc")
+            draw_box_line "$line" "$width" "$GREEN"
+            ((i++))
+        done
+        
+        draw_box_line "" "$width" "$GREEN"
+        draw_box_line "Enter number to toggle, ${BOLD}[b]${NC} Back" "$width" "$GREEN"
+        draw_box_bottom "$width" "$GREEN"
+        
+        echo ""
+        local choice
+        read -rp "$(echo -e "${GREEN}>${NC} ")" choice
+        
+        case "$choice" in
+            b|B|q|Q) return ;;
+            [1-9])
+                local idx=$((choice - 1))
+                if ((idx < ${#toggleable_modules[@]})); then
+                    local module="${toggleable_modules[$idx]}"
+                    if command -v "$module" &>/dev/null || is_module_installed "$module" 2>/dev/null; then
+                        toggle_module "$module"
+                        NEEDS_SHELL_RELOAD=true
+                        echo ""
+                        echo -e "${YELLOW}Change requires shell reload to take effect.${NC}"
+                        sleep 1
+                    else
+                        echo -e "${RED}Module not installed: $module${NC}"
+                        sleep 1
+                    fi
+                fi
+                ;;
+        esac
+    done
+}
+
+# ============================================================================
+# Starship Menu
+# ============================================================================
+
+menu_starship() {
+    while true; do
+        show_menu_header "Starship Prompt"
+        
+        local current_preset
+        current_preset=$(get_current_starship_preset)
+        local is_enabled
+        if is_module_enabled "starship"; then
+            is_enabled="${GREEN}● enabled${NC}"
+        else
+            is_enabled="${DIM}○ disabled${NC}"
+        fi
+        
+        local width=60
+        draw_box_top "Starship Prompt Configuration" "$width" "$MAGENTA"
+        draw_box_line "" "$width" "$MAGENTA"
+        draw_box_line "Current: ${BOLD}$current_preset${NC} ($is_enabled)" "$width" "$MAGENTA"
+        draw_box_line "" "$width" "$MAGENTA"
+        draw_box_line "${BOLD}[1]${NC} Switch Preset         Change to different preset" "$width" "$MAGENTA"
+        draw_box_line "${BOLD}[2]${NC} Toggle On/Off         Enable or disable starship" "$width" "$MAGENTA"
+        draw_box_line "${BOLD}[3]${NC} Edit Config           Open starship.toml" "$width" "$MAGENTA"
+        draw_box_line "${BOLD}[4]${NC} Reload                Apply changes now" "$width" "$MAGENTA"
+        draw_box_line "" "$width" "$MAGENTA"
+        draw_box_line "${BOLD}[b]${NC} Back" "$width" "$MAGENTA"
+        draw_box_bottom "$width" "$MAGENTA"
+        
+        echo ""
+        local choice
+        read -rp "$(echo -e "${MAGENTA}>${NC} ")" choice
+        
+        case "$choice" in
+            1) select_starship_preset ;;
+            2) 
+                toggle_module "starship"
+                NEEDS_SHELL_RELOAD=true
+                echo -e "${YELLOW}Change requires shell reload.${NC}"
+                sleep 1
+                ;;
+            3) 
+                local config="$HOME/.config/starship.toml"
+                if [[ -f "$config" ]] || [[ -L "$config" ]]; then
+                    "${EDITOR:-nano}" "$config"
+                else
+                    echo -e "${RED}Config file not found${NC}"
+                    sleep 1
+                fi
+                ;;
+            4)
+                echo "Reloading starship..."
+                NEEDS_SHELL_RELOAD=true
+                prompt_shell_reload "Starship reload requires restarting shell."
+                ;;
+            b|B|q|Q) return ;;
+        esac
+    done
+}
+
+select_starship_preset() {
+    local presets=(
+        "labrat"
+        "nerd-font-symbols"
+        "bracketed-segments"
+        "plain-text"
+        "pastel-powerline"
+        "tokyo-night"
+        "gruvbox-rainbow"
+        "jetpack"
+        "pure"
+        "no-runtime"
+        "minimal"
+    )
+    
+    local preset_dir="${LABRAT_DATA_DIR:-$HOME/.local/share/labrat}/configs/starship/presets"
+    
+    if has_fzf; then
+        local current
+        current=$(get_current_starship_preset)
+        
+        local selected
+        selected=$(printf '%s\n' "${presets[@]}" | fzf \
+            --header="Select Starship Preset (current: $current)" \
+            --height=50% \
+            --layout=reverse \
+            --border=rounded \
+            --prompt="❯ " \
+            --pointer="▸" \
+            --color="bg+:#313244,bg:#1e1e2e,spinner:#f5e0dc,hl:#f38ba8" \
+            --color="fg:#cdd6f4,header:#f38ba8,info:#cba6f7,pointer:#f5e0dc")
+        
+        if [[ -n "$selected" ]]; then
+            apply_starship_preset "$selected"
+        fi
+    else
+        echo ""
+        echo -e "${BOLD}Available Presets:${NC}"
+        local i=1
+        for preset in "${presets[@]}"; do
+            local marker=""
+            [[ "$preset" == "$(get_current_starship_preset)" ]] && marker=" ${GREEN}(current)${NC}"
+            printf "  [%2d] %s%b\n" "$i" "$preset" "$marker"
+            ((i++))
+        done
+        echo ""
+        
+        local choice
+        read -rp "Select preset [1-${#presets[@]}]: " choice
+        
+        if [[ "$choice" =~ ^[0-9]+$ ]] && ((choice >= 1 && choice <= ${#presets[@]})); then
+            apply_starship_preset "${presets[$((choice-1))]}"
+        fi
+    fi
+}
+
+apply_starship_preset() {
+    local preset="$1"
+    local preset_dir="${LABRAT_DATA_DIR:-$HOME/.local/share/labrat}/configs/starship/presets"
+    local preset_file="${preset_dir}/${preset}.toml"
+    local config_target="$HOME/.config/starship.toml"
+    
+    # Try starship-preset script first
+    if [[ -x "${LABRAT_BIN_DIR}/starship-preset" ]]; then
+        "${LABRAT_BIN_DIR}/starship-preset" "$preset"
+    elif [[ -f "$preset_file" ]]; then
+        mkdir -p "$(dirname "$config_target")"
+        ln -sf "$preset_file" "$config_target"
+        set_current_starship_preset "$preset"
+        echo -e "${GREEN}Applied preset: $preset${NC}"
+    else
+        echo -e "${RED}Preset file not found: $preset_file${NC}"
+        return 1
+    fi
+    
+    NEEDS_SHELL_RELOAD=true
+    sleep 1
+}
+
+# ============================================================================
+# tmux Theme Menu
+# ============================================================================
+
+menu_tmux_theme() {
+    local themes=(
+        "catppuccin-mocha"
+        "catppuccin-latte"
+        "catppuccin-frappe"
+        "catppuccin-macchiato"
+        "tokyo-night"
+        "dracula"
+        "nord"
+        "gruvbox-dark"
+        "gruvbox-light"
+        "rose-pine"
+        "rose-pine-moon"
+        "rose-pine-dawn"
+        "onedark"
+        "minimal"
+    )
+    
+    local current
+    current=$(get_current_tmux_theme)
+    
+    show_menu_header "tmux Theme"
+    
+    if has_fzf; then
+        local selected
+        selected=$(printf '%s\n' "${themes[@]}" | fzf \
+            --header="Select tmux Theme (current: $current)" \
+            --height=60% \
+            --layout=reverse \
+            --border=rounded \
+            --prompt="❯ " \
+            --pointer="▸" \
+            --color="bg+:#313244,bg:#1e1e2e,spinner:#f5e0dc,hl:#f38ba8" \
+            --color="fg:#cdd6f4,header:#f38ba8,info:#cba6f7,pointer:#f5e0dc")
+        
+        if [[ -n "$selected" ]]; then
+            apply_tmux_theme "$selected"
+        fi
+    else
+        echo -e "${BOLD}Current theme:${NC} $current"
+        echo ""
+        echo -e "${BOLD}Available Themes:${NC}"
+        
+        local i=1
+        for theme in "${themes[@]}"; do
+            local marker=""
+            [[ "$theme" == "$current" ]] && marker=" ${GREEN}(current)${NC}"
+            printf "  [%2d] %s%b\n" "$i" "$theme" "$marker"
+            ((i++))
+        done
+        echo ""
+        
+        local choice
+        read -rp "Select theme [1-${#themes[@]}], [b] Back: " choice
+        
+        case "$choice" in
+            b|B) return ;;
+            *)
+                if [[ "$choice" =~ ^[0-9]+$ ]] && ((choice >= 1 && choice <= ${#themes[@]})); then
+                    apply_tmux_theme "${themes[$((choice-1))]}"
+                fi
+                ;;
+        esac
+    fi
+    
+    wait_for_key
+}
+
+apply_tmux_theme() {
+    local theme="$1"
+    
+    # Try tmux-theme script first
+    if [[ -x "${LABRAT_BIN_DIR}/tmux-theme" ]]; then
+        "${LABRAT_BIN_DIR}/tmux-theme" "$theme"
+    elif command -v tmux-theme &>/dev/null; then
+        tmux-theme "$theme"
+    else
+        set_current_tmux_theme "$theme"
+        echo -e "${GREEN}Theme set to: $theme${NC}"
+        echo -e "${YELLOW}Restart tmux or reload config to apply.${NC}"
+    fi
+}
+
+# ============================================================================
+# History Menu (atuin)
+# ============================================================================
+
+menu_history() {
+    while true; do
+        show_menu_header "Shell History (atuin)"
+        
+        local is_enabled
+        if is_module_enabled "atuin"; then
+            is_enabled="${GREEN}● enabled${NC}"
+        else
+            is_enabled="${DIM}○ disabled${NC}"
+        fi
+        
+        local width=55
+        draw_box_top "Shell History Manager" "$width" "$YELLOW"
+        draw_box_line "" "$width" "$YELLOW"
+        draw_box_line "atuin status: $is_enabled" "$width" "$YELLOW"
+        draw_box_line "" "$width" "$YELLOW"
+        draw_box_line "${BOLD}[1]${NC} Toggle atuin          Enable/disable" "$width" "$YELLOW"
+        draw_box_line "${BOLD}[2]${NC} Import history        Import from shell history" "$width" "$YELLOW"
+        draw_box_line "${BOLD}[3]${NC} Show stats            Display usage statistics" "$width" "$YELLOW"
+        draw_box_line "${BOLD}[4]${NC} Search history        Interactive search" "$width" "$YELLOW"
+        draw_box_line "" "$width" "$YELLOW"
+        draw_box_line "${BOLD}[b]${NC} Back" "$width" "$YELLOW"
+        draw_box_bottom "$width" "$YELLOW"
+        
+        echo ""
+        local choice
+        read -rp "$(echo -e "${YELLOW}>${NC} ")" choice
+        
+        case "$choice" in
+            1)
+                toggle_module "atuin"
+                NEEDS_SHELL_RELOAD=true
+                ;;
+            2)
+                if command -v atuin &>/dev/null; then
+                    echo "Importing history..."
+                    atuin import auto
+                    wait_for_key
+                else
+                    echo -e "${RED}atuin not installed${NC}"
+                    sleep 1
+                fi
+                ;;
+            3)
+                if command -v atuin &>/dev/null; then
+                    atuin stats
+                    wait_for_key
+                else
+                    echo -e "${RED}atuin not installed${NC}"
+                    sleep 1
+                fi
+                ;;
+            4)
+                if command -v atuin &>/dev/null; then
+                    atuin search -i
+                else
+                    echo -e "${RED}atuin not installed${NC}"
+                    sleep 1
+                fi
+                ;;
+            b|B|q|Q) return ;;
+        esac
+    done
+}
+
+# ============================================================================
+# Navigation Menu (zoxide, fzf)
+# ============================================================================
+
+menu_navigation() {
+    while true; do
+        show_menu_header "Navigation Tools"
+        
+        local zoxide_status fzf_status
+        if is_module_enabled "zoxide"; then
+            zoxide_status="${GREEN}● ON${NC}"
+        else
+            zoxide_status="${DIM}○ OFF${NC}"
+        fi
+        if is_module_enabled "fzf"; then
+            fzf_status="${GREEN}● ON${NC}"
+        else
+            fzf_status="${DIM}○ OFF${NC}"
+        fi
+        
+        local width=55
+        draw_box_top "Navigation Tools" "$width" "$BLUE"
+        draw_box_line "" "$width" "$BLUE"
+        draw_box_line "zoxide: $zoxide_status    fzf: $fzf_status" "$width" "$BLUE"
+        draw_box_line "" "$width" "$BLUE"
+        draw_box_line "${BOLD}[1]${NC} Toggle zoxide         Smart cd command" "$width" "$BLUE"
+        draw_box_line "${BOLD}[2]${NC} Toggle fzf            Fuzzy finder" "$width" "$BLUE"
+        draw_box_line "${BOLD}[3]${NC} Show zoxide stats     Top directories" "$width" "$BLUE"
+        draw_box_line "" "$width" "$BLUE"
+        draw_box_line "${BOLD}[b]${NC} Back" "$width" "$BLUE"
+        draw_box_bottom "$width" "$BLUE"
+        
+        echo ""
+        local choice
+        read -rp "$(echo -e "${BLUE}>${NC} ")" choice
+        
+        case "$choice" in
+            1)
+                toggle_module "zoxide"
+                NEEDS_SHELL_RELOAD=true
+                ;;
+            2)
+                toggle_module "fzf"
+                NEEDS_SHELL_RELOAD=true
+                ;;
+            3)
+                if command -v zoxide &>/dev/null; then
+                    echo ""
+                    echo -e "${BOLD}Top directories by frecency:${NC}"
+                    zoxide query -l | head -20
+                    echo ""
+                    wait_for_key
+                else
+                    echo -e "${RED}zoxide not installed${NC}"
+                    sleep 1
+                fi
+                ;;
+            b|B|q|Q) return ;;
+        esac
+    done
+}
+
+# ============================================================================
+# SSH Keys Menu
+# ============================================================================
+
+menu_ssh_keys() {
+    # Use labrat-ssh if available
+    if [[ -x "${LABRAT_BIN_DIR}/labrat-ssh" ]]; then
+        "${LABRAT_BIN_DIR}/labrat-ssh"
+    elif command -v labrat-ssh &>/dev/null; then
+        labrat-ssh
+    else
+        show_menu_header "SSH Keys"
+        
+        local key_dir="$HOME/.ssh/labrat"
+        local key_count=0
+        if [[ -d "$key_dir" ]]; then
+            key_count=$(find "$key_dir" -type f ! -name "*.pub" 2>/dev/null | wc -l)
+        fi
+        
+        local loaded_count
+        loaded_count=$(get_loaded_ssh_key_count 2>/dev/null || echo 0)
+        
+        echo -e "${BOLD}SSH Key Status:${NC}"
+        echo -e "  Managed keys: $key_count"
+        echo -e "  Loaded in agent: $loaded_count"
+        echo ""
+        
+        if [[ -d "$key_dir" ]] && [[ $key_count -gt 0 ]]; then
+            echo -e "${BOLD}Managed keys:${NC}"
+            for key in "$key_dir"/*; do
+                if [[ -f "$key" ]] && [[ "$key" != *.pub ]]; then
+                    echo "  - $(basename "$key")"
+                fi
+            done
+        fi
+        
+        echo ""
+        echo -e "${YELLOW}Install ssh-keys module for full management:${NC}"
+        echo "  ./install.sh -m ssh-keys"
+        echo ""
+        wait_for_key
+    fi
+}
+
+# ============================================================================
+# Install/Uninstall Menu
+# ============================================================================
+
+menu_install_uninstall() {
+    while true; do
+        show_menu_header "Install / Uninstall Modules"
+        
+        local width=60
+        draw_box_top "Quick Module Management" "$width" "$GREEN"
+        draw_box_line "" "$width" "$GREEN"
+        draw_box_line "${BOLD}[1]${NC} Install module        Add a new module" "$width" "$GREEN"
+        draw_box_line "${BOLD}[2]${NC} Uninstall module      Remove a module" "$width" "$GREEN"
+        draw_box_line "${BOLD}[3]${NC} Update all            Update installed modules" "$width" "$GREEN"
+        draw_box_line "${BOLD}[4]${NC} Show installed        List installed modules" "$width" "$GREEN"
+        draw_box_line "${BOLD}[5]${NC} Show available        List all available modules" "$width" "$GREEN"
+        draw_box_line "" "$width" "$GREEN"
+        draw_box_line "${BOLD}[b]${NC} Back" "$width" "$GREEN"
+        draw_box_bottom "$width" "$GREEN"
+        
+        echo ""
+        local choice
+        read -rp "$(echo -e "${GREEN}>${NC} ")" choice
+        
+        case "$choice" in
+            1) do_install_module ;;
+            2) do_uninstall_module ;;
+            3) 
+                echo "Running update..."
+                "${LABRAT_ROOT}/install.sh" --update
+                wait_for_key
+                ;;
+            4)
+                echo ""
+                "${LABRAT_ROOT}/install.sh" --status 2>/dev/null || show_installed_modules_simple
+                wait_for_key
+                ;;
+            5)
+                echo ""
+                "${LABRAT_ROOT}/install.sh" --list 2>/dev/null || echo "Run ./install.sh --list for full list"
+                wait_for_key
+                ;;
+            b|B|q|Q) return ;;
+        esac
+    done
+}
+
+do_install_module() {
+    local available_modules=(
+        "tmux" "zsh" "starship" "neovim" "vim" "nerdfonts"
+        "fzf" "ripgrep" "bat" "htop" "lazygit" "eza" "zoxide" "fd" "fastfetch"
+        "btop" "glances" "bandwhich" "nethogs" "procs"
+        "mtr" "gping" "dog" "nmap" "trippy"
+        "atuin" "broot" "direnv" "just" "mise" "thefuck" "tldr"
+        "ssh-keys"
+    )
+    
+    local selected
+    if has_fzf; then
+        selected=$(printf '%s\n' "${available_modules[@]}" | fzf \
+            --header="Select module to install" \
+            --height=50% \
+            --layout=reverse \
+            --border=rounded)
+    else
+        echo ""
+        echo "Available modules:"
+        local i=1
+        for mod in "${available_modules[@]}"; do
+            printf "  [%2d] %s\n" "$i" "$mod"
+            ((i++))
+        done
+        echo ""
+        read -rp "Enter module number: " choice
+        if [[ "$choice" =~ ^[0-9]+$ ]] && ((choice >= 1 && choice <= ${#available_modules[@]})); then
+            selected="${available_modules[$((choice-1))]}"
+        fi
+    fi
+    
+    if [[ -n "$selected" ]]; then
+        echo "Installing $selected..."
+        "${LABRAT_ROOT}/install.sh" -m "$selected" -y
+        NEEDS_SHELL_RELOAD=true
+        wait_for_key
+    fi
+}
+
+do_uninstall_module() {
+    # Get installed modules
+    local installed_dir="${LABRAT_DATA_DIR}/installed"
+    local installed_modules=()
+    
+    if [[ -d "$installed_dir" ]]; then
+        for marker in "$installed_dir"/*; do
+            if [[ -f "$marker" ]]; then
+                installed_modules+=("$(basename "$marker")")
+            fi
+        done
+    fi
+    
+    if [[ ${#installed_modules[@]} -eq 0 ]]; then
+        echo -e "${YELLOW}No modules installed${NC}"
+        sleep 1
+        return
+    fi
+    
+    local selected
+    if has_fzf; then
+        selected=$(printf '%s\n' "${installed_modules[@]}" | fzf \
+            --header="Select module to uninstall" \
+            --height=50% \
+            --layout=reverse \
+            --border=rounded)
+    else
+        echo ""
+        echo "Installed modules:"
+        local i=1
+        for mod in "${installed_modules[@]}"; do
+            printf "  [%2d] %s\n" "$i" "$mod"
+            ((i++))
+        done
+        echo ""
+        read -rp "Enter module number: " choice
+        if [[ "$choice" =~ ^[0-9]+$ ]] && ((choice >= 1 && choice <= ${#installed_modules[@]})); then
+            selected="${installed_modules[$((choice-1))]}"
+        fi
+    fi
+    
+    if [[ -n "$selected" ]]; then
+        if confirm_action "Uninstall $selected?" "n"; then
+            echo "Uninstalling $selected..."
+            if command -v labrat-uninstall &>/dev/null; then
+                labrat-uninstall --module "$selected" -y
+            else
+                "${LABRAT_BIN_DIR}/labrat-uninstall" --module "$selected" -y 2>/dev/null || \
+                    echo "Use labrat-uninstall --module $selected"
+            fi
+            NEEDS_SHELL_RELOAD=true
+            wait_for_key
+        fi
+    fi
+}
+
+show_installed_modules_simple() {
+    local installed_dir="${LABRAT_DATA_DIR}/installed"
+    
+    if [[ ! -d "$installed_dir" ]] || [[ -z "$(ls -A "$installed_dir" 2>/dev/null)" ]]; then
+        echo "No modules installed"
+        return
+    fi
+    
+    echo -e "${BOLD}Installed Modules:${NC}"
+    for marker in "$installed_dir"/*; do
+        if [[ -f "$marker" ]]; then
+            local module=$(basename "$marker")
+            local version=$(head -n1 "$marker")
+            printf "  ${GREEN}✓${NC} %-15s v%s\n" "$module" "$version"
+        fi
+    done
+}
+
+# ============================================================================
+# Edit Configs Menu
+# ============================================================================
+
+menu_edit_configs() {
+    local configs=(
+        "starship.toml:$HOME/.config/starship.toml"
+        "tmux.conf:$HOME/.tmux.conf"
+        "bashrc:$HOME/.bashrc"
+        "zshrc:$HOME/.zshrc"
+        "labrat settings:$HOME/.config/labrat/settings.yaml"
+        "fastfetch:$HOME/.config/fastfetch/config.jsonc"
+    )
+    
+    show_menu_header "Edit Configuration Files"
+    
+    echo -e "${BOLD}Select config to edit:${NC}"
+    echo ""
+    
+    local i=1
+    for config in "${configs[@]}"; do
+        local name="${config%%:*}"
+        local path="${config#*:}"
+        local status=""
+        if [[ -f "$path" ]] || [[ -L "$path" ]]; then
+            status="${GREEN}exists${NC}"
+        else
+            status="${DIM}not found${NC}"
+        fi
+        printf "  [%d] %-20s %b\n" "$i" "$name" "$status"
+        ((i++))
+    done
+    echo ""
+    echo "  [b] Back"
+    echo ""
+    
+    local choice
+    read -rp "$(echo -e "${CYAN}>${NC} ")" choice
+    
+    case "$choice" in
+        b|B) return ;;
+        [1-9])
+            local idx=$((choice - 1))
+            if ((idx < ${#configs[@]})); then
+                local config="${configs[$idx]}"
+                local path="${config#*:}"
+                
+                if [[ -f "$path" ]] || [[ -L "$path" ]]; then
+                    "${EDITOR:-nano}" "$path"
+                else
+                    echo -e "${YELLOW}File not found: $path${NC}"
+                    if confirm_action "Create it?" "n"; then
+                        mkdir -p "$(dirname "$path")"
+                        touch "$path"
+                        "${EDITOR:-nano}" "$path"
+                    fi
+                fi
+            fi
+            ;;
+    esac
+    
+    wait_for_key
+}
+
+# ============================================================================
+# Status Overview Menu
+# ============================================================================
+
+menu_status_overview() {
+    show_menu_header "Status Overview"
+    
+    echo -e "${BOLD}System Information${NC}"
+    echo -e "${DIM}$(repeat_char "─" 50)${NC}"
+    echo -e "  Shell: ${CYAN}${SHELL##*/}${NC}"
+    echo -e "  User:  ${CYAN}$(whoami)${NC}"
+    echo -e "  Host:  ${CYAN}$(hostname)${NC}"
+    echo ""
+    
+    echo -e "${BOLD}LabRat Installation${NC}"
+    echo -e "${DIM}$(repeat_char "─" 50)${NC}"
+    echo -e "  Root:      ${CYAN}$LABRAT_ROOT${NC}"
+    echo -e "  Bin:       ${CYAN}$LABRAT_BIN_DIR${NC}"
+    echo -e "  Data:      ${CYAN}${LABRAT_DATA_DIR:-~/.local/share/labrat}${NC}"
+    echo ""
+    
+    echo -e "${BOLD}Shell Integrations${NC}"
+    echo -e "${DIM}$(repeat_char "─" 50)${NC}"
+    
+    local modules=(starship atuin zoxide fzf mise direnv thefuck broot)
+    for module in "${modules[@]}"; do
+        local status
+        if command -v "$module" &>/dev/null; then
+            if is_module_enabled "$module"; then
+                status="${GREEN}● ON${NC}"
+            else
+                status="${YELLOW}○ OFF${NC}"
+            fi
+        else
+            status="${DIM}○ not installed${NC}"
+        fi
+        printf "  %-12s %b\n" "$module" "$status"
+    done
+    echo ""
+    
+    echo -e "${BOLD}SSH Keys${NC}"
+    echo -e "${DIM}$(repeat_char "─" 50)${NC}"
+    local ssh_count
+    ssh_count=$(ssh-add -l 2>/dev/null | grep -c "SHA256" || echo 0)
+    echo -e "  Loaded in agent: ${CYAN}$ssh_count${NC}"
+    
+    local key_dir="$HOME/.ssh/labrat"
+    if [[ -d "$key_dir" ]]; then
+        local managed
+        managed=$(find "$key_dir" -type f ! -name "*.pub" 2>/dev/null | wc -l)
+        echo -e "  Managed keys:    ${CYAN}$managed${NC}"
+    fi
+    echo ""
+    
+    echo -e "${BOLD}Current Themes${NC}"
+    echo -e "${DIM}$(repeat_char "─" 50)${NC}"
+    echo -e "  Starship preset: ${CYAN}$(get_current_starship_preset)${NC}"
+    echo -e "  tmux theme:      ${CYAN}$(get_current_tmux_theme)${NC}"
+    echo ""
+    
+    wait_for_key
+}
+
+# ============================================================================
+# Startup Summary Settings Menu
+# ============================================================================
+
+menu_startup_summary() {
+    while true; do
+        show_menu_header "Startup Summary Settings"
+        
+        local is_enabled
+        if is_startup_summary_enabled; then
+            is_enabled="${GREEN}● enabled${NC}"
+        else
+            is_enabled="${DIM}○ disabled${NC}"
+        fi
+        
+        local current_style
+        current_style=$(get_preference "summary_style" "compact")
+        
+        local width=55
+        draw_box_top "Startup Summary Configuration" "$width" "$CYAN"
+        draw_box_line "" "$width" "$CYAN"
+        draw_box_line "Status: $is_enabled    Style: ${BOLD}$current_style${NC}" "$width" "$CYAN"
+        draw_box_line "" "$width" "$CYAN"
+        draw_box_line "${BOLD}[1]${NC} Toggle on/off" "$width" "$CYAN"
+        draw_box_line "${BOLD}[2]${NC} Set style: compact" "$width" "$CYAN"
+        draw_box_line "${BOLD}[3]${NC} Set style: boxed" "$width" "$CYAN"
+        draw_box_line "${BOLD}[4]${NC} Set style: minimal" "$width" "$CYAN"
+        draw_box_line "${BOLD}[5]${NC} Preview current style" "$width" "$CYAN"
+        draw_box_line "" "$width" "$CYAN"
+        draw_box_line "${BOLD}[b]${NC} Back" "$width" "$CYAN"
+        draw_box_bottom "$width" "$CYAN"
+        
+        echo ""
+        local choice
+        read -rp "$(echo -e "${CYAN}>${NC} ")" choice
+        
+        case "$choice" in
+            1)
+                if is_startup_summary_enabled; then
+                    disable_startup_summary
+                    echo -e "${GREEN}Startup summary disabled${NC}"
+                else
+                    enable_startup_summary
+                    echo -e "${GREEN}Startup summary enabled${NC}"
+                fi
+                sleep 1
+                ;;
+            2)
+                save_preference "summary_style" "compact"
+                echo -e "${GREEN}Style set to: compact${NC}"
+                sleep 1
+                ;;
+            3)
+                save_preference "summary_style" "boxed"
+                echo -e "${GREEN}Style set to: boxed${NC}"
+                sleep 1
+                ;;
+            4)
+                save_preference "summary_style" "minimal"
+                echo -e "${GREEN}Style set to: minimal${NC}"
+                sleep 1
+                ;;
+            5)
+                echo ""
+                echo -e "${BOLD}Preview:${NC}"
+                echo ""
+                # Force show regardless of state
+                LABRAT_SUMMARY_SHOWN=""
+                save_preference "startup_summary" "true"
+                source "${LABRAT_LIB_DIR}/startup_summary.sh"
+                case "$current_style" in
+                    boxed) show_boxed_summary ;;
+                    minimal) show_minimal_summary ;;
+                    *) show_compact_summary ;;
+                esac
+                echo ""
+                wait_for_key
+                ;;
+            b|B|q|Q) return ;;
+        esac
+    done
+}
+
+# ============================================================================
+# Shell Reload
+# ============================================================================
+
+do_shell_reload() {
+    echo ""
+    echo -e "${YELLOW}Reloading shell...${NC}"
+    exec "$SHELL"
+}
+
+# ============================================================================
+# Helper function for SSH key count (if not already loaded)
+# ============================================================================
+
+get_loaded_ssh_key_count() {
+    if command -v ssh-add &>/dev/null; then
+        ssh-add -l 2>/dev/null | grep -c "SHA256" || echo 0
+    else
+        echo "0"
+    fi
+}
+
+# ============================================================================
+# Main Entry Point
+# ============================================================================
+
+main() {
+    # Check for fzf (required)
+    if ! has_fzf; then
+        echo -e "${YELLOW}Warning: fzf is required for full functionality${NC}"
+        echo -e "${DIM}Install with: labrat -m fzf${NC}"
+        echo ""
+        sleep 2
+    fi
+    
+    # Initialize state directories
+    ensure_state_dirs 2>/dev/null || true
+    
+    # Main loop
+    while [[ "$MENU_RUNNING" == "true" ]]; do
+        show_main_menu
+    done
+    
+    show_cursor
+}
+
+# Run main
+main "$@"

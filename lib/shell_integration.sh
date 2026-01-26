@@ -208,6 +208,30 @@ if [[ -d "$LABRAT_BASH_MODULES" ]]; then
     unset module_file
 fi
 unset LABRAT_BASH_MODULES
+
+# ============================================================================
+# LabRat Menu Hotkey (Alt+L)
+# ============================================================================
+
+if [[ $- == *i* ]] && command -v labrat-menu &>/dev/null; then
+    bind '"\el":"labrat-menu\n"'
+fi
+
+# ============================================================================
+# Startup Summary
+# ============================================================================
+
+# Show startup summary (respects LABRAT_QUIET and session state)
+if [[ $- == *i* ]] && [[ -z "${LABRAT_SUMMARY_SHOWN:-}" ]]; then
+    LABRAT_LIB_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/labrat/lib"
+    if [[ -f "${LABRAT_LIB_DIR}/startup_summary.sh" ]]; then
+        source "${LABRAT_LIB_DIR}/startup_summary.sh"
+        labrat_startup_summary 2>/dev/null || true
+    elif [[ -f "$HOME/.labrat/lib/startup_summary.sh" ]]; then
+        source "$HOME/.labrat/lib/startup_summary.sh"
+        labrat_startup_summary 2>/dev/null || true
+    fi
+fi
 BASH_MAIN
 
     chmod +x "$LABRAT_BASH_RC"
@@ -251,6 +275,35 @@ if [[ -d "$LABRAT_ZSH_MODULES" ]]; then
     unset module_file
 fi
 unset LABRAT_ZSH_MODULES
+
+# ============================================================================
+# LabRat Menu Hotkey (Alt+L)
+# ============================================================================
+
+if (( $+commands[labrat-menu] )); then
+    labrat-menu-widget() {
+        BUFFER="labrat-menu"
+        zle accept-line
+    }
+    zle -N labrat-menu-widget
+    bindkey '\el' labrat-menu-widget
+fi
+
+# ============================================================================
+# Startup Summary
+# ============================================================================
+
+# Show startup summary (respects LABRAT_QUIET and session state)
+if [[ -o interactive ]] && [[ -z "${LABRAT_SUMMARY_SHOWN:-}" ]]; then
+    LABRAT_LIB_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/labrat/lib"
+    if [[ -f "${LABRAT_LIB_DIR}/startup_summary.sh" ]]; then
+        source "${LABRAT_LIB_DIR}/startup_summary.sh"
+        labrat_startup_summary 2>/dev/null || true
+    elif [[ -f "$HOME/.labrat/lib/startup_summary.sh" ]]; then
+        source "$HOME/.labrat/lib/startup_summary.sh"
+        labrat_startup_summary 2>/dev/null || true
+    fi
+fi
 ZSH_MAIN
 
     chmod +x "$LABRAT_ZSH_RC"
