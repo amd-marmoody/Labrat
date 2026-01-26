@@ -52,7 +52,7 @@ install_starship() {
     deploy_starship_config
     
     # Setup shell integration
-    setup_shell_integration
+    setup_starship_shell_integration
     
     # Mark as installed
     mark_module_installed "starship" "$installed_version"
@@ -489,104 +489,18 @@ STARSHIP_CONFIG
 }
 
 # ============================================================================
-# Shell Integration
+# Shell Integration (uses centralized shell_integration.sh)
 # ============================================================================
 
-setup_shell_integration() {
-    log_step "Setting up shell integration..."
+setup_starship_shell_integration() {
+    log_step "Setting up starship shell integration..."
     
-    # Bash integration
-    local bashrc="$HOME/.bashrc"
-    if [[ -f "$bashrc" ]]; then
-        if ! grep -q 'starship init bash' "$bashrc"; then
-            log_info "Adding starship to .bashrc"
-            {
-                echo ""
-                echo "# LabRat PATH setup"
-                echo 'export PATH="$HOME/.local/bin:$PATH"'
-                echo ""
-                echo "# Starship prompt (added by LabRat)"
-                echo "# Starship is OFF by default. Run 'starship-on' to enable."
-                echo "# Toggle: starship-on / starship-off"
-                echo ''
-                echo '# Toggle starship prompt on/off'
-                echo 'starship-off() {'
-                echo '    export STARSHIP_DISABLE=1'
-                echo '    unset STARSHIP_SESSION_KEY'
-                echo '    PROMPT_COMMAND=""'
-                echo '    PS1="\u@\h:\w\$ "'
-                echo '    echo "Starship disabled."'
-                echo '}'
-                echo 'starship-on() {'
-                echo '    unset STARSHIP_DISABLE'
-                echo '    if command -v starship &>/dev/null; then'
-                echo '        eval "$(starship init bash)"'
-                echo '        # Reinitialize zoxide after starship (must be last)'
-                echo '        command -v zoxide &>/dev/null && eval "$(zoxide init bash)"'
-                echo '        echo "Starship enabled."'
-                echo '    else'
-                echo '        echo "Starship not installed."'
-                echo '    fi'
-                echo '}'
-                echo ''
-                echo '# Reload starship after preset change'
-                echo 'starship-reload() {'
-                echo '    if command -v starship &>/dev/null; then'
-                echo '        eval "$(starship init bash)"'
-                echo '        echo "Starship reloaded."'
-                echo '    fi'
-                echo '}'
-            } >> "$bashrc"
-        fi
-    fi
+    # Use centralized shell integration
+    # This adds to ~/.config/labrat/shellrc.sh which is sourced early
+    add_shell_integration "starship" 'eval "$(starship init bash)"' "Cross-shell prompt"
     
-    # Zsh integration (usually handled by .zshrc, but add if needed)
-    local zshrc="$HOME/.zshrc"
-    if [[ -f "$zshrc" ]]; then
-        if ! grep -q 'starship init zsh' "$zshrc"; then
-            log_info "Adding starship to .zshrc"
-            {
-                echo ""
-                echo "# Starship prompt (added by LabRat)"
-                echo "# Toggle: starship-on / starship-off"
-                echo 'if [[ -z "$STARSHIP_DISABLE" ]] && command -v starship &>/dev/null; then'
-                echo '    eval "$(starship init zsh)"'
-                echo 'fi'
-                echo ''
-                echo '# Toggle starship prompt on/off'
-                echo 'starship-off() { export STARSHIP_DISABLE=1; exec zsh; }'
-                echo 'starship-on() { unset STARSHIP_DISABLE; exec zsh; }'
-                echo ''
-                echo '# Reload starship after preset change'
-                echo 'starship-reload() { exec zsh; }'
-            } >> "$zshrc"
-        fi
-    fi
-    
-    # Fish integration
-    local fish_config="$HOME/.config/fish/config.fish"
-    if [[ -f "$fish_config" ]]; then
-        if ! grep -q 'starship init fish' "$fish_config"; then
-            log_info "Adding starship to fish config"
-            {
-                echo ""
-                echo "# Starship prompt (added by LabRat)"
-                echo 'if not set -q STARSHIP_DISABLE; and command -v starship &>/dev/null'
-                echo '    starship init fish | source'
-                echo 'end'
-                echo ''
-                echo '# Toggle starship prompt on/off'
-                echo 'function starship-off; set -gx STARSHIP_DISABLE 1; exec fish; end'
-                echo 'function starship-on; set -e STARSHIP_DISABLE; exec fish; end'
-                echo ''
-                echo '# Reload starship after preset change'
-                echo 'function starship-reload; exec fish; end'
-            } >> "$fish_config"
-        fi
-    fi
-    
-    log_success "Shell integration configured"
-    log_info "Toggle starship: ${BOLD}starship-on${NC} / ${BOLD}starship-off${NC}"
+    log_success "Starship shell integration configured"
+    log_info "Starship will initialize on next shell session"
 }
 
 # ============================================================================
