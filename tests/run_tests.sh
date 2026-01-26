@@ -611,6 +611,38 @@ docker_test_module() {
     fi
 }
 
+# Run install/uninstall cycle test in Docker
+docker_test_cycle() {
+    local distro="${1:-ubuntu-shells}"
+    local image_name="labrat-test-${distro}"
+    
+    log_header "Install/Uninstall Cycle Test: $distro"
+    
+    docker_build "$distro" || return 1
+    
+    log_info "Running install/uninstall cycle tests..."
+    
+    if docker run --rm "$image_name" bash -c "./tests/test_install_uninstall.sh"; then
+        log_success "Install/uninstall cycle tests passed on $distro"
+        return 0
+    else
+        log_fail "Install/uninstall cycle tests failed on $distro"
+        return 1
+    fi
+}
+
+# Run quick install/uninstall tests
+run_install_uninstall_tests() {
+    log_header "Running Install/Uninstall Tests"
+    
+    if [[ -x "${SCRIPT_DIR}/test_install_uninstall.sh" ]]; then
+        "${SCRIPT_DIR}/test_install_uninstall.sh" --quick
+    else
+        log_fail "test_install_uninstall.sh not found or not executable"
+        return 1
+    fi
+}
+
 # ============================================================================
 # Test Suites
 # ============================================================================

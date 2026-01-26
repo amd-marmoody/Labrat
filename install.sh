@@ -27,6 +27,8 @@ source "${LABRAT_LIB_DIR}/common.sh"
 source "${LABRAT_LIB_DIR}/package_manager.sh"
 # shellcheck source=./lib/shell_integration.sh
 source "${LABRAT_LIB_DIR}/shell_integration.sh"
+# shellcheck source=./lib/manifest.sh
+source "${LABRAT_LIB_DIR}/manifest.sh"
 
 # ============================================================================
 # Configuration

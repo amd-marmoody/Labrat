@@ -14,6 +14,7 @@ install_atuin() {
         local installed_version=$(atuin --version 2>/dev/null | grep -oP '[\d.]+' | head -1)
         log_info "atuin already installed (v${installed_version})"
         if ! confirm "Reinstall/update atuin?" "n"; then
+            setup_atuin_integration
             mark_module_installed "atuin" "${installed_version}"
             return 0
         fi
@@ -27,14 +28,16 @@ install_atuin() {
     fi
     
     local version=$(atuin --version 2>/dev/null | grep -oP '[\d.]+' | head -1)
-    mark_module_installed "atuin" "${version:-unknown}"
     
-    # Setup shell integration
-    setup_atuin_shell
+    # Setup shell integration using new API
+    setup_atuin_integration
+    
+    mark_module_installed "atuin" "${version:-unknown}"
     
     log_success "atuin installed successfully!"
     log_info "Run ${BOLD}atuin import auto${NC} to import existing history"
     log_info "Press ${BOLD}Ctrl+R${NC} for interactive search"
+    log_info "Helper functions: ${BOLD}atuin-enable${NC}, ${BOLD}atuin-disable${NC}"
 }
 
 install_atuin_from_github() {
@@ -73,33 +76,143 @@ install_atuin_from_github() {
     fi
 }
 
-setup_atuin_shell() {
+# ============================================================================
+# Shell Integration (using new modular API)
+# ============================================================================
+
+setup_atuin_integration() {
     log_step "Setting up atuin shell integration..."
     
-    # Bash
-    local bashrc="$HOME/.bashrc"
-    if [[ -f "$bashrc" ]] && ! grep -q "atuin init" "$bashrc"; then
-        echo "" >> "$bashrc"
-        echo "# atuin shell history" >> "$bashrc"
-        echo 'eval "$(atuin init bash)"' >> "$bashrc"
-        log_info "Added atuin to .bashrc"
+    # Define helper functions for bash
+    local bash_functions='
+# Disable atuin history (use default Ctrl+R)
+atuin-disable() {
+    # Restore default bash history search
+    bind '"'"'"\C-r": reverse-search-history'"'"'
+    echo "atuin disabled. Using default Ctrl+R history search."
+}
+
+# Re-enable atuin
+atuin-enable() {
+    if command -v atuin &>/dev/null; then
+        eval "$(atuin init bash)"
+        echo "atuin enabled!"
+    else
+        echo "Error: atuin not found"
+        return 1
     fi
+}
+
+# Show atuin stats
+atuin-stats() {
+    if command -v atuin &>/dev/null; then
+        atuin stats
+    fi
+}
+
+# Search history with atuin
+atuin-search() {
+    if command -v atuin &>/dev/null; then
+        atuin search "$@"
+    fi
+}'
+
+    # Define helper functions for zsh
+    local zsh_functions='
+# Disable atuin history
+atuin-disable() {
+    # Restore default zsh history search
+    bindkey "^R" history-incremental-search-backward
+    echo "atuin disabled. Using default Ctrl+R history search."
+}
+
+# Re-enable atuin
+atuin-enable() {
+    if (( $+commands[atuin] )); then
+        eval "$(atuin init zsh)"
+        echo "atuin enabled!"
+    else
+        echo "Error: atuin not found"
+        return 1
+    fi
+}
+
+# Show atuin stats
+atuin-stats() {
+    if (( $+commands[atuin] )); then
+        atuin stats
+    fi
+}
+
+# Search history with atuin
+atuin-search() {
+    if (( $+commands[atuin] )); then
+        atuin search "$@"
+    fi
+}'
+
+    # Define helper functions for fish
+    local fish_functions='
+# Disable atuin
+function atuin-disable
+    # Remove atuin keybinding
+    bind -e \cr
+    echo "atuin disabled."
+end
+
+# Re-enable atuin
+function atuin-enable
+    if command -v atuin &>/dev/null
+        atuin init fish | source
+        echo "atuin enabled!"
+    else
+        echo "Error: atuin not found"
+        return 1
+    end
+end
+
+# Show atuin stats
+function atuin-stats
+    if command -v atuin &>/dev/null
+        atuin stats
+    end
+end'
+
+    # Register shell integration using new modular API
+    register_shell_module "atuin" \
+        --init-bash 'eval "$(atuin init bash)"' \
+        --init-zsh 'eval "$(atuin init zsh)"' \
+        --init-fish 'atuin init fish | source' \
+        --functions-bash "$bash_functions" \
+        --functions-zsh "$zsh_functions" \
+        --functions-fish "$fish_functions" \
+        --description "Shell history with sync and search"
     
-    # Zsh
-    local zshrc="$HOME/.zshrc"
-    if [[ -f "$zshrc" ]] && ! grep -q "atuin init" "$zshrc"; then
-        echo "" >> "$zshrc"
-        echo "# atuin shell history" >> "$zshrc"
-        echo 'eval "$(atuin init zsh)"' >> "$zshrc"
-        log_info "Added atuin to .zshrc"
-    fi
+    log_success "atuin shell integration configured"
 }
 
 uninstall_atuin() {
     log_step "Uninstalling atuin..."
+    
+    # Remove binary
     rm -f "$LABRAT_BIN_DIR/atuin"
+    
+    # Remove shell integration
+    unregister_shell_module "atuin"
+    
+    # Remove installed marker
     rm -f "${LABRAT_DATA_DIR}/installed/atuin"
+    
+    # Optional: remove atuin data
+    if [[ -d "$HOME/.local/share/atuin" ]]; then
+        if confirm "Remove atuin data (~/.local/share/atuin)? This includes your synced history." "n"; then
+            rm -rf "$HOME/.local/share/atuin"
+            log_info "Removed atuin data"
+        else
+            log_info "Kept atuin data at ~/.local/share/atuin"
+        fi
+    fi
+    
     log_success "atuin uninstalled"
-    log_info "Remove 'eval \"\$(atuin init ...)\"' from your shell config"
-    log_info "Optionally remove ~/.local/share/atuin"
+    log_info "Your shell history data was preserved unless you chose to remove it"
 }

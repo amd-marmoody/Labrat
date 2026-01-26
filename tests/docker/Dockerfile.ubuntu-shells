@@ -1,0 +1,74 @@
+# LabRat Test Container - Ubuntu with Multiple Shells
+# Tests install/uninstall across bash, zsh, and fish
+FROM ubuntu:22.04
+
+# Prevent interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install basic dependencies and all shell types
+RUN apt-get update && apt-get install -y \
+    sudo \
+    curl \
+    wget \
+    git \
+    ca-certificates \
+    bash \
+    zsh \
+    fish \
+    jq \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create test user with all three shells accessible
+RUN useradd -m -s /bin/bash testuser && \
+    echo "testuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Create default shell config files
+USER testuser
+WORKDIR /home/testuser
+
+# Create default bashrc with interactive check (standard Ubuntu style)
+RUN echo '# ~/.bashrc: executed by bash(1) for non-login shells.\n\
+\n\
+# If not running interactively, do not do anything\n\
+case $- in\n\
+    *i*) ;;\n\
+      *) return;;\n\
+esac\n\
+\n\
+# Default PS1\n\
+PS1='"'"'\u@\h:\w\$ '"'"'\n\
+\n\
+# Alias definitions\n\
+alias ll='"'"'ls -alF'"'"'\n\
+alias la='"'"'ls -A'"'"'\n\
+' > /home/testuser/.bashrc
+
+# Create default zshrc
+RUN echo '# ~/.zshrc\n\
+\n\
+# Default prompt\n\
+PROMPT="%n@%m:%~%# "\n\
+\n\
+# Aliases\n\
+alias ll="ls -alF"\n\
+' > /home/testuser/.zshrc
+
+# Create fish config directory and file
+RUN mkdir -p /home/testuser/.config/fish && \
+    echo '# ~/.config/fish/config.fish\n\
+\n\
+# Default greeting\n\
+set fish_greeting ""\n\
+' > /home/testuser/.config/fish/config.fish
+
+# Copy LabRat source
+COPY --chown=testuser:testuser . /home/testuser/.labrat
+
+# Set environment
+ENV LABRAT_ROOT=/home/testuser/.labrat
+ENV PATH="/home/testuser/.local/bin:$PATH"
+
+WORKDIR /home/testuser/.labrat
+
+# Default command
+CMD ["/bin/bash"]

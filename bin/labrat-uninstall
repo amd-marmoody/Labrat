@@ -1,0 +1,630 @@
+#!/usr/bin/env bash
+#
+# LabRat Uninstaller
+# Clean removal of LabRat modules and shell integration
+#
+# Usage:
+#   labrat-uninstall                    # Interactive mode
+#   labrat-uninstall --module NAME      # Remove specific module
+#   labrat-uninstall --all              # Remove all modules
+#   labrat-uninstall --restore-original # Restore pre-LabRat shell configs
+#   labrat-uninstall --full             # Complete removal including data
+#
+
+set -euo pipefail
+
+# ============================================================================
+# Script Location and Library Loading
+# ============================================================================
+
+# Find LabRat root
+if [[ -n "${LABRAT_ROOT:-}" ]]; then
+    LABRAT_ROOT="$LABRAT_ROOT"
+elif [[ -d "$HOME/.labrat" ]]; then
+    LABRAT_ROOT="$HOME/.labrat"
+elif [[ -d "$(dirname "${BASH_SOURCE[0]}")/.." ]]; then
+    LABRAT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+else
+    echo "Error: Cannot find LabRat installation"
+    exit 1
+fi
+
+LABRAT_LIB_DIR="${LABRAT_ROOT}/lib"
+
+# Source libraries
+# shellcheck source=../lib/colors.sh
+source "${LABRAT_LIB_DIR}/colors.sh"
+# shellcheck source=../lib/common.sh
+source "${LABRAT_LIB_DIR}/common.sh"
+# shellcheck source=../lib/shell_integration.sh
+source "${LABRAT_LIB_DIR}/shell_integration.sh"
+# shellcheck source=../lib/manifest.sh
+source "${LABRAT_LIB_DIR}/manifest.sh"
+
+# ============================================================================
+# Configuration
+# ============================================================================
+
+UNINSTALL_MODE=""
+TARGET_MODULE=""
+DRY_RUN=false
+FORCE=false
+VERBOSE=false
+
+# ============================================================================
+# Helper Functions
+# ============================================================================
+
+print_usage() {
+    cat << EOF
+${BOLD}LabRat Uninstaller${NC}
+
+${BOLD}USAGE:${NC}
+    $(basename "$0") [OPTIONS] [COMMAND]
+
+${BOLD}COMMANDS:${NC}
+    (none)              Interactive mode - choose what to remove
+    --module NAME       Remove a specific module
+    --all               Remove all installed modules
+    --shell-only        Remove only shell integration (keep binaries)
+    --restore-original  Restore original pre-LabRat shell configs
+    --full              Complete removal (modules + data + configs)
+
+${BOLD}OPTIONS:${NC}
+    -y, --yes           Skip confirmation prompts
+    -n, --dry-run       Show what would be removed without doing it
+    -v, --verbose       Verbose output
+    -h, --help          Show this help message
+
+${BOLD}EXAMPLES:${NC}
+    $(basename "$0")                      # Interactive uninstall
+    $(basename "$0") --module starship    # Remove just starship
+    $(basename "$0") --all -y             # Remove all modules (no prompt)
+    $(basename "$0") --restore-original   # Restore original shell configs
+    $(basename "$0") --full               # Complete removal
+
+${BOLD}NOTES:${NC}
+    - Original shell configs are backed up at: ~/.local/share/labrat/shell_backups/original/
+    - Module binaries are in: ~/.local/bin/
+    - Module configs are in: ~/.config/labrat/modules/
+
+EOF
+}
+
+# ============================================================================
+# Module Uninstallation
+# ============================================================================
+
+# Get list of installed modules
+get_installed_modules() {
+    local installed_dir="${LABRAT_DATA_DIR}/installed"
+    
+    if [[ -d "$installed_dir" ]]; then
+        for marker in "$installed_dir"/*; do
+            if [[ -f "$marker" ]]; then
+                basename "$marker"
+            fi
+        done
+    fi
+}
+
+# Uninstall a single module
+uninstall_module() {
+    local module="$1"
+    
+    log_subheader "Uninstalling: $module"
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log_info "[DRY RUN] Would uninstall: $module"
+        return 0
+    fi
+    
+    # Find and source the module script
+    local module_script=""
+    for category in terminal shell editors fonts utils monitoring network productivity security; do
+        local script="${LABRAT_ROOT}/modules/${category}/${module}.sh"
+        if [[ -f "$script" ]]; then
+            module_script="$script"
+            break
+        fi
+    done
+    
+    if [[ -n "$module_script" ]]; then
+        # Source the module
+        # shellcheck source=/dev/null
+        source "$module_script"
+        
+        # Handle hyphenated names
+        local func_name="${module//-/_}"
+        local uninstall_func="uninstall_${func_name}"
+        
+        # Call module's uninstall function if it exists
+        if declare -f "$uninstall_func" > /dev/null; then
+            "$uninstall_func"
+        else
+            # Default uninstall behavior
+            log_info "Module $module has no custom uninstall, using defaults"
+            default_uninstall_module "$module"
+        fi
+    else
+        # Module script not found, use default behavior
+        log_warn "Module script not found for $module, using default uninstall"
+        default_uninstall_module "$module"
+    fi
+    
+    # Always clean up shell integration
+    if is_shell_module_registered "$module"; then
+        unregister_shell_module "$module"
+    fi
+    
+    # Remove from manifest
+    unmark_module_installed "$module"
+    
+    log_success "Uninstalled: $module"
+}
+
+# Default uninstall behavior when module doesn't have custom uninstall
+default_uninstall_module() {
+    local module="$1"
+    
+    # Try to remove binary
+    local binary_name="$module"
+    case "$module" in
+        ripgrep) binary_name="rg" ;;
+        neovim) binary_name="nvim" ;;
+    esac
+    
+    if [[ -f "${LABRAT_BIN_DIR}/${binary_name}" ]]; then
+        rm -f "${LABRAT_BIN_DIR}/${binary_name}"
+        log_info "Removed binary: ${binary_name}"
+    fi
+    
+    # Remove any related config files
+    local config_dir="${LABRAT_CONFIG_DIR}/${module}"
+    if [[ -d "$config_dir" ]]; then
+        rm -rf "$config_dir"
+        log_info "Removed config directory: ${config_dir}"
+    fi
+}
+
+# Uninstall all modules
+uninstall_all_modules() {
+    log_header "Uninstalling All Modules"
+    
+    local modules=($(get_installed_modules))
+    
+    if [[ ${#modules[@]} -eq 0 ]]; then
+        log_info "No modules installed"
+        return 0
+    fi
+    
+    log_info "Found ${#modules[@]} installed module(s)"
+    
+    for module in "${modules[@]}"; do
+        uninstall_module "$module"
+    done
+    
+    log_success "All modules uninstalled"
+}
+
+# ============================================================================
+# Shell Integration Removal
+# ============================================================================
+
+# Remove shell integration only (keep binaries)
+remove_shell_integration_only() {
+    log_header "Removing Shell Integration"
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log_info "[DRY RUN] Would remove shell integration"
+        log_info "  - Remove hooks from ~/.bashrc, ~/.zshrc"
+        log_info "  - Remove ~/.config/labrat/modules/"
+        log_info "  - Remove ~/.config/labrat/*.sh"
+        return 0
+    fi
+    
+    # Remove all module snippets
+    local modules=($(list_shell_modules))
+    for module in "${modules[@]}"; do
+        unregister_shell_module "$module"
+    done
+    
+    # Remove shell hooks
+    remove_shell_hook "bash"
+    remove_shell_hook "zsh"
+    remove_shell_hook "fish"
+    
+    # Remove main labrat shell configs
+    rm -f "$LABRAT_BASH_RC"
+    rm -f "$LABRAT_ZSH_RC"
+    rm -f "$LABRAT_FISH_RC"
+    rm -f "$LABRAT_LEGACY_SHELL_RC"
+    
+    log_success "Shell integration removed"
+    log_info "Binaries in ~/.local/bin/ were preserved"
+}
+
+# Restore original shell configs
+do_restore_original() {
+    log_header "Restoring Original Shell Configs"
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log_info "[DRY RUN] Would restore original configs from:"
+        log_info "  $LABRAT_ORIGINAL_BACKUP_DIR"
+        return 0
+    fi
+    
+    # First remove current shell integration
+    remove_shell_hook "bash"
+    remove_shell_hook "zsh"
+    remove_shell_hook "fish"
+    
+    # Then restore originals
+    restore_original_shell_configs
+    
+    log_success "Original shell configs restored"
+    log_info "You may need to restart your shell or run: source ~/.bashrc"
+}
+
+# ============================================================================
+# Full Uninstall
+# ============================================================================
+
+# Complete removal of LabRat
+full_uninstall() {
+    log_header "Full LabRat Uninstall"
+    
+    log_warn "This will remove:"
+    echo "  - All installed modules and binaries"
+    echo "  - All shell integrations"
+    echo "  - LabRat configuration directory"
+    echo "  - LabRat data directory"
+    echo ""
+    
+    if [[ "$FORCE" != "true" ]]; then
+        if ! confirm "Are you sure you want to completely remove LabRat?" "n"; then
+            log_info "Cancelled"
+            return 0
+        fi
+        
+        echo ""
+        if confirm "Restore original shell configs (before LabRat)?" "y"; then
+            local restore_original=true
+        else
+            local restore_original=false
+        fi
+    else
+        local restore_original=true
+    fi
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log_info "[DRY RUN] Would perform full uninstall"
+        return 0
+    fi
+    
+    # Uninstall all modules
+    uninstall_all_modules
+    
+    # Remove shell integration
+    uninstall_shell_integration
+    
+    # Restore originals if requested
+    if [[ "$restore_original" == "true" ]]; then
+        restore_original_shell_configs
+    fi
+    
+    # Remove data directory (but preserve backups)
+    log_step "Cleaning up LabRat data..."
+    
+    # Keep the backup directory, remove everything else
+    if [[ -d "$LABRAT_DATA_DIR" ]]; then
+        # Move backups to temp location
+        local backup_temp=$(mktemp -d)
+        if [[ -d "$LABRAT_SHELL_BACKUP_DIR" ]]; then
+            mv "$LABRAT_SHELL_BACKUP_DIR" "$backup_temp/"
+        fi
+        
+        # Remove data dir
+        rm -rf "$LABRAT_DATA_DIR"
+        
+        # Restore backups (user might want them later)
+        mkdir -p "$LABRAT_DATA_DIR"
+        if [[ -d "$backup_temp/shell_backups" ]]; then
+            mv "$backup_temp/shell_backups" "$LABRAT_SHELL_BACKUP_DIR"
+            log_info "Shell config backups preserved at: $LABRAT_SHELL_BACKUP_DIR"
+        fi
+        rm -rf "$backup_temp"
+    fi
+    
+    # Remove config directory
+    if [[ -d "$LABRAT_SHELL_CONFIG_DIR" ]]; then
+        rm -rf "$LABRAT_SHELL_CONFIG_DIR"
+    fi
+    
+    # Clear manifest
+    manifest_clear
+    
+    log_success "LabRat has been completely removed"
+    echo ""
+    log_info "To finish cleanup, you can optionally remove:"
+    echo "  - ~/.local/bin/ binaries installed by LabRat"
+    echo "  - $LABRAT_DATA_DIR (contains only shell config backups)"
+    echo ""
+    log_info "Restart your shell or run: exec \$SHELL"
+}
+
+# ============================================================================
+# Interactive Mode
+# ============================================================================
+
+interactive_menu() {
+    clear
+    
+    echo -e "${CYAN}"
+    cat << 'EOF'
+    ╦  ╔═╗╔╗ ╦═╗╔═╗╔╦╗  ╦ ╦╔╗╔╦╔╗╔╔═╗╔╦╗╔═╗╦  ╦  
+    ║  ╠═╣╠╩╗╠╦╝╠═╣ ║   ║ ║║║║║║║║╚═╗ ║ ╠═╣║  ║  
+    ╩═╝╩ ╩╚═╝╩╚═╩ ╩ ╩   ╚═╝╝╚╝╩╝╚╝╚═╝ ╩ ╩ ╩╩═╝╩═╝
+EOF
+    echo -e "${NC}"
+    echo ""
+    
+    # Show current installation status
+    local modules=($(get_installed_modules))
+    local shell_modules=($(list_shell_modules))
+    
+    echo -e "${BOLD}Current Installation:${NC}"
+    echo -e "  Modules installed: ${CYAN}${#modules[@]}${NC}"
+    echo -e "  Shell integrations: ${CYAN}${#shell_modules[@]}${NC}"
+    echo ""
+    
+    if [[ ${#modules[@]} -gt 0 ]]; then
+        echo -e "${DIM}Installed modules: ${modules[*]}${NC}"
+        echo ""
+    fi
+    
+    echo -e "${BOLD}What would you like to do?${NC}"
+    echo ""
+    echo "  [1] Uninstall specific module"
+    echo "  [2] Uninstall all modules"
+    echo "  [3] Remove shell integration only (keep binaries)"
+    echo "  [4] Restore original shell configs"
+    echo "  [5] Full uninstall (complete removal)"
+    echo ""
+    echo "  [s] Show installation status"
+    echo "  [q] Quit"
+    echo ""
+    
+    read -rp "$(echo -e "${COLOR_ACCENT}>${NC} Enter selection: ")" choice
+    
+    case "$choice" in
+        1)
+            interactive_select_module
+            ;;
+        2)
+            echo ""
+            if confirm "Uninstall all ${#modules[@]} modules?" "n"; then
+                uninstall_all_modules
+            fi
+            ;;
+        3)
+            echo ""
+            if confirm "Remove shell integration? (binaries will be kept)" "n"; then
+                remove_shell_integration_only
+            fi
+            ;;
+        4)
+            echo ""
+            if confirm "Restore original shell configs?" "n"; then
+                do_restore_original
+            fi
+            ;;
+        5)
+            full_uninstall
+            return 0
+            ;;
+        s|S)
+            show_status
+            read -rp "Press Enter to continue..."
+            interactive_menu
+            return
+            ;;
+        q|Q)
+            log_info "Goodbye!"
+            exit 0
+            ;;
+        *)
+            log_warn "Invalid selection"
+            sleep 1
+            interactive_menu
+            return
+            ;;
+    esac
+    
+    echo ""
+    read -rp "Press Enter to continue..."
+    interactive_menu
+}
+
+interactive_select_module() {
+    local modules=($(get_installed_modules))
+    
+    if [[ ${#modules[@]} -eq 0 ]]; then
+        log_info "No modules installed"
+        return
+    fi
+    
+    echo ""
+    echo -e "${BOLD}Installed Modules:${NC}"
+    echo ""
+    
+    local i=1
+    for module in "${modules[@]}"; do
+        local version=$(get_installed_version "$module")
+        printf "  [%2d] %-20s v%s\n" "$i" "$module" "$version"
+        ((i++))
+    done
+    echo ""
+    echo "  [q] Back to menu"
+    echo ""
+    
+    read -rp "Select module to uninstall: " selection
+    
+    if [[ "$selection" == "q" ]] || [[ "$selection" == "Q" ]]; then
+        return
+    fi
+    
+    if [[ "$selection" =~ ^[0-9]+$ ]] && ((selection >= 1 && selection <= ${#modules[@]})); then
+        local selected_module="${modules[$((selection-1))]}"
+        echo ""
+        if confirm "Uninstall $selected_module?" "y"; then
+            uninstall_module "$selected_module"
+        fi
+    else
+        log_warn "Invalid selection"
+    fi
+}
+
+# Show detailed status
+show_status() {
+    log_header "LabRat Installation Status"
+    
+    # Show manifest info
+    manifest_show
+    
+    # Show shell integration status
+    shell_integration_status
+    
+    # Show disk usage
+    echo -e "${BOLD}Disk Usage:${NC}"
+    
+    if [[ -d "$LABRAT_DATA_DIR" ]]; then
+        local data_size=$(du -sh "$LABRAT_DATA_DIR" 2>/dev/null | cut -f1)
+        echo -e "  Data directory: $data_size ($LABRAT_DATA_DIR)"
+    fi
+    
+    if [[ -d "$LABRAT_SHELL_CONFIG_DIR" ]]; then
+        local config_size=$(du -sh "$LABRAT_SHELL_CONFIG_DIR" 2>/dev/null | cut -f1)
+        echo -e "  Config directory: $config_size ($LABRAT_SHELL_CONFIG_DIR)"
+    fi
+    
+    if [[ -d "$LABRAT_BIN_DIR" ]]; then
+        local bin_count=$(ls -1 "$LABRAT_BIN_DIR" 2>/dev/null | wc -l)
+        echo -e "  Binaries in PATH: $bin_count files ($LABRAT_BIN_DIR)"
+    fi
+    
+    echo ""
+}
+
+# ============================================================================
+# Argument Parsing
+# ============================================================================
+
+parse_args() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -h|--help)
+                print_usage
+                exit 0
+                ;;
+            --module)
+                UNINSTALL_MODE="module"
+                TARGET_MODULE="$2"
+                shift 2
+                ;;
+            --all)
+                UNINSTALL_MODE="all"
+                shift
+                ;;
+            --shell-only)
+                UNINSTALL_MODE="shell-only"
+                shift
+                ;;
+            --restore-original)
+                UNINSTALL_MODE="restore"
+                shift
+                ;;
+            --full)
+                UNINSTALL_MODE="full"
+                shift
+                ;;
+            -y|--yes)
+                FORCE=true
+                SKIP_CONFIRMATION=true
+                shift
+                ;;
+            -n|--dry-run)
+                DRY_RUN=true
+                shift
+                ;;
+            -v|--verbose)
+                VERBOSE=true
+                LABRAT_VERBOSE=1
+                shift
+                ;;
+            *)
+                log_error "Unknown option: $1"
+                print_usage
+                exit 1
+                ;;
+        esac
+    done
+}
+
+# ============================================================================
+# Main
+# ============================================================================
+
+main() {
+    parse_args "$@"
+    
+    # Initialize directories for common.sh functions
+    init_labrat_dirs
+    
+    case "$UNINSTALL_MODE" in
+        "module")
+            if [[ -z "$TARGET_MODULE" ]]; then
+                log_error "Module name required"
+                exit 1
+            fi
+            if ! is_module_installed "$TARGET_MODULE"; then
+                log_error "Module not installed: $TARGET_MODULE"
+                exit 1
+            fi
+            uninstall_module "$TARGET_MODULE"
+            ;;
+        "all")
+            if [[ "$FORCE" != "true" ]]; then
+                if ! confirm "Uninstall all modules?" "n"; then
+                    exit 0
+                fi
+            fi
+            uninstall_all_modules
+            ;;
+        "shell-only")
+            if [[ "$FORCE" != "true" ]]; then
+                if ! confirm "Remove shell integration?" "n"; then
+                    exit 0
+                fi
+            fi
+            remove_shell_integration_only
+            ;;
+        "restore")
+            if [[ "$FORCE" != "true" ]]; then
+                if ! confirm "Restore original shell configs?" "n"; then
+                    exit 0
+                fi
+            fi
+            do_restore_original
+            ;;
+        "full")
+            full_uninstall
+            ;;
+        "")
+            # Interactive mode
+            interactive_menu
+            ;;
+    esac
+}
+
+main "$@"
