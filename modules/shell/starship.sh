@@ -494,12 +494,12 @@ STARSHIP_CONFIG
 setup_starship_shell_integration() {
     log_step "Setting up starship shell integration..."
     
-    # Add starship init for each shell
+    # Add starship init for each shell (with STARSHIP_DISABLE check)
     add_shell_integration "starship" \
-        'eval "$(starship init bash)"' \
-        'eval "$(starship init zsh)"' \
-        'starship init fish | source' \
-        "Cross-shell prompt"
+        '[[ -z "${STARSHIP_DISABLE:-}" ]] && eval "$(starship init bash)"' \
+        '[[ -z "${STARSHIP_DISABLE:-}" ]] && eval "$(starship init zsh)"' \
+        'test -z "$STARSHIP_DISABLE"; and starship init fish | source' \
+        "Cross-shell prompt (skips if STARSHIP_DISABLE is set)"
     
     # Add toggle and reload functions
     # These restart the shell to ensure clean state
