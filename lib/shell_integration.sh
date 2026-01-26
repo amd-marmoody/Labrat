@@ -524,28 +524,41 @@ unregister_shell_module() {
 # List all registered shell modules
 list_shell_modules() {
     local modules=()
+    local file name
     
     # Collect unique module names from all shell directories
-    for file in "${LABRAT_BASH_MODULES_DIR}"/*.sh 2>/dev/null; do
-        [[ -f "$file" ]] && modules+=("$(basename "$file" .sh)")
-    done
+    if [[ -d "$LABRAT_BASH_MODULES_DIR" ]]; then
+        for file in "$LABRAT_BASH_MODULES_DIR"/*.sh; do
+            [[ -f "$file" ]] && modules+=("$(basename "$file" .sh)")
+        done
+    fi
     
-    for file in "${LABRAT_ZSH_MODULES_DIR}"/*.zsh 2>/dev/null; do
-        local name=$(basename "$file" .zsh)
-        if [[ ! " ${modules[*]} " =~ " ${name} " ]]; then
-            modules+=("$name")
-        fi
-    done
+    if [[ -d "$LABRAT_ZSH_MODULES_DIR" ]]; then
+        for file in "$LABRAT_ZSH_MODULES_DIR"/*.zsh; do
+            if [[ -f "$file" ]]; then
+                name=$(basename "$file" .zsh)
+                if [[ ! " ${modules[*]} " =~ " ${name} " ]]; then
+                    modules+=("$name")
+                fi
+            fi
+        done
+    fi
     
-    for file in "${LABRAT_FISH_MODULES_DIR}"/*.fish 2>/dev/null; do
-        local name=$(basename "$file" .fish)
-        if [[ ! " ${modules[*]} " =~ " ${name} " ]]; then
-            modules+=("$name")
-        fi
-    done
+    if [[ -d "$LABRAT_FISH_MODULES_DIR" ]]; then
+        for file in "$LABRAT_FISH_MODULES_DIR"/*.fish; do
+            if [[ -f "$file" ]]; then
+                name=$(basename "$file" .fish)
+                if [[ ! " ${modules[*]} " =~ " ${name} " ]]; then
+                    modules+=("$name")
+                fi
+            fi
+        done
+    fi
     
-    # Sort and print
-    printf '%s\n' "${modules[@]}" | sort -u
+    # Sort and print (only if we have modules)
+    if [[ ${#modules[@]} -gt 0 ]]; then
+        printf '%s\n' "${modules[@]}" | sort -u
+    fi
 }
 
 # Check if a module has shell integration registered
