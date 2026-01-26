@@ -10,7 +10,8 @@
 #   ./install.sh --update           # Update existing installation
 #
 
-set -euo pipefail
+set -uo pipefail
+# Note: We don't use set -e to allow graceful error handling and continuation
 
 # ============================================================================
 # Script Location and Library Loading
@@ -237,6 +238,7 @@ parse_args() {
                 ;;
             -y|--yes)
                 SKIP_CONFIRMATION=true
+                export SKIP_CONFIRMATION
                 shift
                 ;;
             -v|--verbose)
