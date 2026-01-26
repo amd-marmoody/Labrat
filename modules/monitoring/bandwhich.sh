@@ -61,9 +61,8 @@ install_bandwhich_from_github() {
         *) log_error "Unsupported architecture: $ARCH"; return 1 ;;
     esac
     
-    # Strip 'v' prefix from version for filename
-    local version_no_v="${latest_version#v}"
-    local download_url="https://github.com/${BANDWHICH_GITHUB_REPO}/releases/download/${latest_version}/bandwhich-${version_no_v}-${arch_suffix}.tar.gz"
+    # Filename uses version WITH 'v' prefix (e.g., bandwhich-v0.23.1-x86_64-unknown-linux-musl.tar.gz)
+    local download_url="https://github.com/${BANDWHICH_GITHUB_REPO}/releases/download/${latest_version}/bandwhich-${latest_version}-${arch_suffix}.tar.gz"
     local temp_file="${LABRAT_CACHE_DIR}/bandwhich.tar.gz"
     local extract_dir="${LABRAT_CACHE_DIR}/bandwhich"
     

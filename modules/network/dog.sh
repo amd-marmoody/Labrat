@@ -51,9 +51,8 @@ install_dog_from_github() {
         *) log_error "dog only provides x86_64 binaries. Arch: $ARCH"; return 1 ;;
     esac
     
-    # Strip 'v' prefix from version for filename
-    local version_no_v="${latest_version#v}"
-    local download_url="https://github.com/${DOG_GITHUB_REPO}/releases/download/${latest_version}/dog-${version_no_v}-${arch_suffix}.zip"
+    # Filename uses version WITH 'v' prefix (e.g., dog-v0.1.0-x86_64-unknown-linux-gnu.zip)
+    local download_url="https://github.com/${DOG_GITHUB_REPO}/releases/download/${latest_version}/dog-${latest_version}-${arch_suffix}.zip"
     local temp_file="${LABRAT_CACHE_DIR}/dog.zip"
     local extract_dir="${LABRAT_CACHE_DIR}/dog"
     

@@ -53,9 +53,8 @@ install_procs_from_github() {
         *) log_error "Unsupported architecture: $ARCH"; return 1 ;;
     esac
     
-    # Strip 'v' prefix from version for filename
-    local version_no_v="${latest_version#v}"
-    local download_url="https://github.com/${PROCS_GITHUB_REPO}/releases/download/${latest_version}/procs-${version_no_v}-${arch_suffix}.zip"
+    # Filename uses version WITH 'v' prefix (e.g., procs-v0.14.10-x86_64-linux.zip)
+    local download_url="https://github.com/${PROCS_GITHUB_REPO}/releases/download/${latest_version}/procs-${latest_version}-${arch_suffix}.zip"
     local temp_file="${LABRAT_CACHE_DIR}/procs.zip"
     
     ensure_dir "${LABRAT_CACHE_DIR}"
