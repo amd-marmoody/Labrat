@@ -883,6 +883,45 @@ main() {
     # Parse command-line arguments
     parse_args "$@"
     
+    # Handle uninstall mode first (takes precedence)
+    if [[ "$UNINSTALL_MODE" == true ]]; then
+        show_banner
+        for module in "${SELECTED_MODULES[@]}"; do
+            log_step "Uninstalling $module..."
+            local module_script=""
+            
+            # Find module script
+            for category in terminal shell editors fonts utils monitoring network productivity security; do
+                local script="${LABRAT_MODULES_DIR}/${category}/${module}.sh"
+                if [[ -f "$script" ]]; then
+                    module_script="$script"
+                    break
+                fi
+            done
+            
+            if [[ -z "$module_script" ]]; then
+                log_error "Module not found: $module"
+                continue
+            fi
+            
+            # Source the module and call uninstall function
+            # shellcheck source=/dev/null
+            source "$module_script"
+            local func_name="${module//-/_}"
+            local uninstall_func="uninstall_${func_name}"
+            
+            if declare -f "$uninstall_func" > /dev/null; then
+                "$uninstall_func"
+                log_success "Uninstalled $module"
+            else
+                # Fallback: just remove the marker file
+                rm -f "${LABRAT_DATA_DIR}/installed/${module}"
+                log_success "Removed $module marker"
+            fi
+        done
+        exit 0
+    fi
+    
     # Handle different modes
     case "$INSTALL_MODE" in
         interactive)

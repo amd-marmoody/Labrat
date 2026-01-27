@@ -128,8 +128,19 @@ setup_bat_alias() {
 setup_bat_config() {
     local config_dir="$HOME/.config/bat"
     local config_file="$config_dir/config"
+    local themes_dir="$config_dir/themes"
     
     ensure_dir "$config_dir"
+    ensure_dir "$themes_dir"
+    
+    # Deploy themes from LabRat configs
+    if [[ -d "${LABRAT_CONFIGS_DIR}/bat/themes" ]]; then
+        log_step "Deploying bat themes..."
+        cp -f "${LABRAT_CONFIGS_DIR}/bat/themes/"*.tmTheme "$themes_dir/" 2>/dev/null || true
+        local theme_count
+        theme_count=$(find "$themes_dir" -name "*.tmTheme" 2>/dev/null | wc -l)
+        log_success "Deployed $theme_count bat themes"
+    fi
     
     cat > "$config_file" << 'BAT_CONFIG'
 # bat configuration (added by LabRat)

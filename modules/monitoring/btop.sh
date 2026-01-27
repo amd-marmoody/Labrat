@@ -143,7 +143,18 @@ deploy_btop_config() {
     log_step "Deploying btop configuration..."
     
     local config_dir="$HOME/.config/btop"
+    local themes_dir="$config_dir/themes"
     ensure_dir "$config_dir"
+    ensure_dir "$themes_dir"
+    
+    # Deploy themes from LabRat configs
+    if [[ -d "${LABRAT_CONFIGS_DIR}/btop/themes" ]]; then
+        log_step "Deploying btop themes..."
+        cp -f "${LABRAT_CONFIGS_DIR}/btop/themes/"*.theme "$themes_dir/" 2>/dev/null || true
+        local theme_count
+        theme_count=$(find "$themes_dir" -name "*.theme" 2>/dev/null | wc -l)
+        log_success "Deployed $theme_count btop themes"
+    fi
     
     # Create a sensible default config if it doesn't exist
     if [[ ! -f "$config_dir/btop.conf" ]]; then
