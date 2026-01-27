@@ -27,6 +27,9 @@ if [[ "$COLORS_ENABLED" == true ]]; then
     MAGENTA='\033[0;35m'
     CYAN='\033[0;36m'
     WHITE='\033[0;37m'
+    
+    # Aliases
+    PURPLE='\033[0;35m'
 
     # Bright Colors
     BRIGHT_BLACK='\033[0;90m'
@@ -71,6 +74,7 @@ else
     MAGENTA=''
     CYAN=''
     WHITE=''
+    PURPLE=''
     BRIGHT_BLACK=''
     BRIGHT_RED=''
     BRIGHT_GREEN=''
