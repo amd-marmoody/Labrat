@@ -237,6 +237,16 @@ if [[ $- == *i* ]]; then
         labrat_startup_summary 2>/dev/null || true
     fi
 fi
+
+# ============================================================================
+# Fix: Ensure starship prompt is set on initial shell load
+# ============================================================================
+# When bash-preexec is used (by atuin, etc.), starship registers in precmd_functions
+# but the precmd may not fire until after the first command. This ensures the
+# starship prompt is set immediately.
+if [[ $- == *i* ]] && type starship_precmd &>/dev/null; then
+    starship_precmd
+fi
 BASH_MAIN
 
     chmod +x "$LABRAT_BASH_RC"
