@@ -1,0 +1,132 @@
+# LabRat Interactive Test Container - Fresh Bootstrap Testing
+# 
+# Build:   docker build -f tests/docker/Dockerfile.interactive -t labrat-test .
+# 
+# Run with local source mounted:
+#   docker run -it --rm -v $(pwd):/labrat-src labrat-test
+#
+# Run for remote testing (no mount, wget from GitHub):
+#   docker run -it --rm -e LABRAT_REPO=https://github.com/USER/labrat.git labrat-test
+#
+FROM ubuntu:22.04
+
+# Prevent interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TERM=xterm-256color
+
+# Install dependencies that a typical user might have
+RUN apt-get update && apt-get install -y \
+    sudo \
+    curl \
+    wget \
+    git \
+    ca-certificates \
+    python3 \
+    python3-pip \
+    vim \
+    nano \
+    less \
+    file \
+    unzip \
+    build-essential \
+    zsh \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create test user with sudo access
+RUN useradd -m -s /bin/bash testuser && \
+    echo "testuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Create .local/bin for user
+RUN mkdir -p /home/testuser/.local/bin && \
+    chown -R testuser:testuser /home/testuser
+
+# Switch to test user
+USER testuser
+WORKDIR /home/testuser
+
+# Add .local/bin to PATH
+ENV PATH="/home/testuser/.local/bin:$PATH"
+
+# Create mount point for source code (mounted at runtime)
+# The labrat source will be available at /labrat-src
+
+# Create a helper script for easy testing
+RUN echo '#!/bin/bash\n\
+echo ""\n\
+echo "===== LabRat Interactive Test Environment ====="\n\
+echo ""\n\
+echo "LOCAL SOURCE TESTING (if mounted at /labrat-src):"\n\
+echo "  lr-install     - cd /labrat-src && ./install.sh"\n\
+echo "  lr-bootstrap   - bash /labrat-src/labrat_bootstrap.sh"\n\
+echo "  lr-menu        - /labrat-src/bin/labrat-menu"\n\
+echo ""\n\
+echo "REMOTE WGET TESTING (from GitHub):"\n\
+echo "  lr-wget        - Download and run bootstrap from LABRAT_REPO"\n\
+echo "  lr-wget-branch - Download specific branch"\n\
+echo ""\n\
+echo "Example remote test:"\n\
+echo "  export LABRAT_REPO=https://github.com/YOUR_USER/labrat.git"\n\
+echo "  export LABRAT_BRANCH=feature/labrat-menu"\n\
+echo "  lr-wget"\n\
+echo ""\n\
+echo "Or one-liner:"\n\
+echo "  LABRAT_REPO=https://github.com/USER/labrat.git LABRAT_BRANCH=main lr-wget"\n\
+echo ""\n\
+if [[ -d /labrat-src ]]; then\n\
+  echo "Local source: /labrat-src (mounted)"\n\
+else\n\
+  echo "Local source: Not mounted (use remote wget testing)"\n\
+fi\n\
+echo ""\n\
+' > /home/testuser/test-help.sh && chmod +x /home/testuser/test-help.sh
+
+# Add aliases and functions for convenience
+RUN echo '\n\
+# LabRat test aliases - local source\n\
+alias lr-install="cd /labrat-src && ./install.sh"\n\
+alias lr-menu="/labrat-src/bin/labrat-menu"\n\
+alias lr-bootstrap="bash /labrat-src/labrat_bootstrap.sh"\n\
+alias lr-help="/home/testuser/test-help.sh"\n\
+\n\
+# LabRat test functions - remote wget\n\
+lr-wget() {\n\
+    local repo="${LABRAT_REPO:-https://github.com/YOUR_USER/labrat.git}"\n\
+    local branch="${LABRAT_BRANCH:-main}"\n\
+    local raw_url="${repo%.git}"\n\
+    raw_url="${raw_url/github.com/raw.githubusercontent.com}"\n\
+    \n\
+    echo "Downloading bootstrap from: ${raw_url}/${branch}/labrat_bootstrap.sh"\n\
+    wget -qO- "${raw_url}/${branch}/labrat_bootstrap.sh" | LABRAT_REPO="$repo" LABRAT_BRANCH="$branch" bash\n\
+}\n\
+\n\
+lr-wget-curl() {\n\
+    local repo="${LABRAT_REPO:-https://github.com/YOUR_USER/labrat.git}"\n\
+    local branch="${LABRAT_BRANCH:-main}"\n\
+    local raw_url="${repo%.git}"\n\
+    raw_url="${raw_url/github.com/raw.githubusercontent.com}"\n\
+    \n\
+    echo "Downloading bootstrap from: ${raw_url}/${branch}/labrat_bootstrap.sh"\n\
+    curl -fsSL "${raw_url}/${branch}/labrat_bootstrap.sh" | LABRAT_REPO="$repo" LABRAT_BRANCH="$branch" bash\n\
+}\n\
+\n\
+# Quick test with specific repo/branch\n\
+lr-test-remote() {\n\
+    if [[ -z "$1" ]]; then\n\
+        echo "Usage: lr-test-remote <github-user> [branch]"\n\
+        echo "Example: lr-test-remote myuser feature/labrat-menu"\n\
+        return 1\n\
+    fi\n\
+    export LABRAT_REPO="https://github.com/$1/labrat.git"\n\
+    export LABRAT_BRANCH="${2:-main}"\n\
+    echo "Testing from: $LABRAT_REPO (branch: $LABRAT_BRANCH)"\n\
+    lr-wget\n\
+}\n\
+' >> /home/testuser/.bashrc
+
+# Show help on startup
+RUN echo '\n\
+/home/testuser/test-help.sh\n\
+' >> /home/testuser/.bashrc
+
+# Default command - interactive bash
+CMD ["/bin/bash"]
