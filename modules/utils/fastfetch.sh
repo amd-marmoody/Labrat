@@ -21,18 +21,24 @@ install_fastfetch() {
         installed_version=$(fastfetch --version 2>/dev/null | head -1 | grep -oP '[\d.]+' | head -1)
         log_info "fastfetch already installed (v${installed_version})"
     else
-        # Try package manager first
+        # Try package manager first, but prefer GitHub for reliability
+        local use_github=false
+        
         case "$OS_FAMILY" in
             debian)
                 # Ubuntu PPA or direct package
                 if [[ "$OS" == "ubuntu" ]]; then
-                    # Try PPA for latest version
-                    if confirm "Add fastfetch PPA for latest version?" "y"; then
+                    # In non-interactive mode (--yes flag), use GitHub directly
+                    # PPA method requires user confirmation and may not work in all cases
+                    if [[ "${SKIP_CONFIRM:-false}" == "true" ]] || [[ ! -t 0 ]]; then
+                        log_info "Non-interactive mode: using GitHub release"
+                        use_github=true
+                    elif confirm "Add fastfetch PPA for latest version?" "y"; then
                         sudo add-apt-repository -y ppa:zhangsongcui3371/fastfetch 2>/dev/null || true
                         pkg_update
                     fi
                 fi
-                if ! pkg_install fastfetch; then
+                if [[ "$use_github" == "true" ]] || ! pkg_install fastfetch; then
                     install_fastfetch_from_github
                 fi
                 ;;

@@ -130,25 +130,38 @@ _manifest_add_module_simple() {
         mv "$tmp_file" "$LABRAT_MANIFEST_FILE"
     else
         # Add new module - insert before closing brace of modules object
-        local module_entry="    \"$module_name\": {
-      \"version\": \"$version\",
-      \"installed_at\": \"$timestamp\",
-      \"updated_at\": \"$timestamp\",
-      \"shell_integration\": $has_shell
-    }"
-        
         local tmp_file=$(mktemp)
         
         # Check if modules object is empty
         if grep -q '"modules": {}' "$LABRAT_MANIFEST_FILE"; then
-            # Replace empty modules with new entry
-            sed "s/\"modules\": {}/\"modules\": {\n$module_entry\n  }/" "$LABRAT_MANIFEST_FILE" > "$tmp_file"
+            # Replace empty modules with new entry using awk (handles multi-line)
+            awk -v name="$module_name" -v ver="$version" -v ts="$timestamp" -v shell="$has_shell" '
+                /"modules": \{\}/ {
+                    print "  \"modules\": {"
+                    print "    \"" name "\": {"
+                    print "      \"version\": \"" ver "\","
+                    print "      \"installed_at\": \"" ts "\","
+                    print "      \"updated_at\": \"" ts "\","
+                    print "      \"shell_integration\": " shell
+                    print "    }"
+                    print "  },"
+                    next
+                }
+                { print }
+            ' "$LABRAT_MANIFEST_FILE" > "$tmp_file"
         else
             # Add to existing modules (insert before last } in modules block)
-            # This is tricky without jq, so we use awk
-            awk -v entry="$module_entry" '
+            awk -v name="$module_name" -v ver="$version" -v ts="$timestamp" -v shell="$has_shell" '
                 /"modules": \{/ { in_modules=1 }
-                in_modules && /^  \}/ && !done { print ",\n" entry; done=1 }
+                in_modules && /^  \}/ && !done {
+                    print "    ,\"" name "\": {"
+                    print "      \"version\": \"" ver "\","
+                    print "      \"installed_at\": \"" ts "\","
+                    print "      \"updated_at\": \"" ts "\","
+                    print "      \"shell_integration\": " shell
+                    print "    }"
+                    done=1
+                }
                 { print }
             ' "$LABRAT_MANIFEST_FILE" > "$tmp_file"
         fi

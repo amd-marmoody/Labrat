@@ -79,7 +79,23 @@ install_ssh_keys() {
     # Ensure directories exist with proper permissions
     ensure_ssh_directories
     
-    # Show the main menu
+    # Check for non-interactive mode
+    if [[ "${SKIP_CONFIRM:-false}" == "true" ]] || [[ ! -t 0 ]]; then
+        log_info "Non-interactive mode: skipping SSH key setup menu"
+        log_info "Run 'labrat-ssh' after installation to manage SSH keys"
+        
+        # Setup shell integration (non-interactive part)
+        setup_ssh_shell_integration
+        
+        # Mark as installed
+        mark_module_installed "ssh-keys" "1.0.0"
+        
+        log_success "SSH key management configured!"
+        log_info "Use 'labrat-ssh add' to add keys interactively"
+        return 0
+    fi
+    
+    # Show the main menu (interactive mode only)
     ssh_setup_menu
     
     # Setup shell integration
