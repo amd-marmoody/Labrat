@@ -187,9 +187,14 @@ generate_bash_main_config() {
 # PATH Configuration
 # ============================================================================
 
-# Add LabRat bin directory to PATH (if not already present)
+# Add LabRat bin directories to PATH (if not already present)
 if [[ -d "$HOME/.local/bin" ]] && [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
     export PATH="$HOME/.local/bin:$PATH"
+fi
+
+# Add LabRat's own bin directory (contains labrat-menu, labrat-ssh, etc.)
+if [[ -d "$HOME/.labrat/bin" ]] && [[ ":$PATH:" != *":$HOME/.labrat/bin:"* ]]; then
+    export PATH="$HOME/.labrat/bin:$PATH"
 fi
 
 # ============================================================================
@@ -255,9 +260,14 @@ generate_zsh_main_config() {
 # PATH Configuration
 # ============================================================================
 
-# Add LabRat bin directory to PATH (if not already present)
+# Add LabRat bin directories to PATH (if not already present)
 if [[ -d "$HOME/.local/bin" ]] && [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
     export PATH="$HOME/.local/bin:$PATH"
+fi
+
+# Add LabRat's own bin directory (contains labrat-menu, labrat-ssh, etc.)
+if [[ -d "$HOME/.labrat/bin" ]] && [[ ":$PATH:" != *":$HOME/.labrat/bin:"* ]]; then
+    export PATH="$HOME/.labrat/bin:$PATH"
 fi
 
 # ============================================================================
@@ -326,10 +336,17 @@ generate_fish_main_config() {
 # PATH Configuration
 # ============================================================================
 
-# Add LabRat bin directory to PATH (if not already present)
+# Add LabRat bin directories to PATH (if not already present)
 if test -d "$HOME/.local/bin"
     if not contains "$HOME/.local/bin" $PATH
         set -gx PATH "$HOME/.local/bin" $PATH
+    end
+end
+
+# Add LabRat's own bin directory (contains labrat-menu, labrat-ssh, etc.)
+if test -d "$HOME/.labrat/bin"
+    if not contains "$HOME/.labrat/bin" $PATH
+        set -gx PATH "$HOME/.labrat/bin" $PATH
     end
 end
 
