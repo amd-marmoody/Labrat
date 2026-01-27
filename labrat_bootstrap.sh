@@ -243,7 +243,30 @@ main() {
     
     # Hand off to main installer with any passed arguments
     log_header "Launching LabRat Installer"
-    exec "$LABRAT_DIR/install.sh" "$@"
+    
+    # Check if stdin is a terminal (not a pipe)
+    # When piping (wget ... | bash), stdin is consumed by the pipe
+    # In that case, we need to either:
+    #   1. Run non-interactively with --all -y
+    #   2. Redirect stdin from /dev/tty for interactive input
+    if [[ ! -t 0 ]]; then
+        # stdin is not a terminal (likely piped)
+        if [[ -e /dev/tty ]]; then
+            # /dev/tty exists, we can redirect stdin for interactive use
+            log_info "Piped install detected, reconnecting to terminal for interactive mode..."
+            exec "$LABRAT_DIR/install.sh" "$@" < /dev/tty
+        else
+            # No tty available (e.g., cron, non-interactive container)
+            # Default to full install with auto-confirm
+            log_warn "Non-interactive environment detected"
+            log_info "Running with --all --yes for unattended install"
+            log_info "Use 'install.sh' directly for interactive mode"
+            exec "$LABRAT_DIR/install.sh" --all --yes "$@"
+        fi
+    else
+        # Normal interactive invocation
+        exec "$LABRAT_DIR/install.sh" "$@"
+    fi
 }
 
 # Run main with all script arguments
