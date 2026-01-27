@@ -52,9 +52,19 @@ draw_box_top() {
     local width="${2:-70}"
     local color="${3:-$CYAN}"
     
-    local title_len=${#title}
-    local padding=$(( (width - title_len - 4) / 2 ))
-    local padding_right=$(( width - title_len - 4 - padding ))
+    # Use display_width for proper emoji/unicode handling
+    local title_display_len
+    title_display_len=$(display_width "$title")
+    
+    # Account for the spaces around the title: " title "
+    local inner_width=$((width - 2))  # Inside the box
+    local title_total=$((title_display_len + 2))  # title + 2 spaces
+    local padding=$(( (inner_width - title_total) / 2 ))
+    local padding_right=$(( inner_width - title_total - padding ))
+    
+    # Ensure non-negative padding
+    ((padding < 0)) && padding=0
+    ((padding_right < 0)) && padding_right=0
     
     echo -e "${color}╔$(repeat_char "═" "$width")╗${NC}"
     if [[ -n "$title" ]]; then
@@ -68,14 +78,19 @@ draw_box_line() {
     local width="${2:-70}"
     local color="${3:-$CYAN}"
     
-    # Strip ANSI for length calculation
-    local plain_text
-    plain_text=$(echo -e "$text" | sed 's/\x1b\[[0-9;]*m//g')
-    local text_len=${#plain_text}
-    local padding=$((width - text_len - 2))
+    # Use display_width for proper emoji/unicode handling
+    local text_display_len
+    text_display_len=$(display_width "$text")
+    
+    # Content area is width - 2 (for the two ║ borders, but we add space after first ║)
+    # So format is: ║ content padding║
+    # Total inside = width, but we use 1 space after first ║
+    local inner_width=$((width - 1))  # -1 for the leading space after ║
+    local padding=$((inner_width - text_display_len))
     
     if ((padding < 0)); then
         padding=0
+        # Truncate text if too long
         text="${text:0:$((width - 5))}..."
     fi
     
@@ -125,6 +140,49 @@ repeat_char() {
         result+="$char"
     done
     printf "%s" "$result"
+}
+
+# Calculate display width of a string (handles emojis and Unicode)
+# Emojis are typically 2 columns wide, ANSI codes are 0 width
+display_width() {
+    local str="$1"
+    
+    # Strip ANSI escape codes first
+    local clean
+    clean=$(echo -e "$str" | sed 's/\x1b\[[0-9;]*m//g')
+    
+    # Use wc -L if available (counts display width)
+    if command -v wc &>/dev/null; then
+        local width
+        width=$(echo -n "$clean" | wc -L 2>/dev/null)
+        if [[ -n "$width" && "$width" =~ ^[0-9]+$ ]]; then
+            echo "$width"
+            return
+        fi
+    fi
+    
+    # Fallback: count characters, add 1 for each likely emoji
+    # This is a rough approximation
+    local len=${#clean}
+    # Count emoji-like characters (characters outside ASCII)
+    local emoji_count=0
+    local i
+    for ((i=0; i<${#clean}; i++)); do
+        local char="${clean:$i:1}"
+        local byte
+        byte=$(printf '%d' "'$char" 2>/dev/null || echo 0)
+        # Characters with high byte values are likely multi-byte/emoji
+        if ((byte > 127 || byte < 0)); then
+            ((emoji_count++))
+        fi
+    done
+    
+    # Rough adjustment: many emojis are 2 width but take 4 bytes
+    # We counted them once, but they display as 2, so no adjustment needed
+    # Actually the issue is ${#} counts multi-byte chars as 1
+    # For emojis, they display as 2 but ${#} counts as 1
+    # So we need to add 1 for each emoji
+    echo $((len + emoji_count / 3))
 }
 
 # ============================================================================
