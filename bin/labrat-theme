@@ -14,7 +14,14 @@ set -euo pipefail
 
 # Configuration
 LABRAT_DATA_DIR="${LABRAT_DATA_DIR:-$HOME/.local/share/labrat}"
-LABRAT_CONFIG_DIR="${LABRAT_CONFIG_DIR:-$LABRAT_DATA_DIR/configs}"
+# Check both potential config locations
+if [[ -d "${LABRAT_ROOT:-$HOME/.labrat}/configs" ]]; then
+    LABRAT_CONFIG_DIR="${LABRAT_ROOT:-$HOME/.labrat}/configs"
+elif [[ -d "$LABRAT_DATA_DIR/configs" ]]; then
+    LABRAT_CONFIG_DIR="$LABRAT_DATA_DIR/configs"
+else
+    LABRAT_CONFIG_DIR="$HOME/.labrat/configs"
+fi
 THEME_MARKER="${LABRAT_DATA_DIR}/current-theme"
 
 # Colors
@@ -315,7 +322,14 @@ EOF
         esac
     fi
     
-    echo -e "  ${GREEN}✓${NC} fzf → $theme"
+    echo -e "  ${GREEN}✓${NC} fzf → $theme (reload shell to apply)"
+    
+    # Source the theme in the current shell if possible
+    # This exports FZF_DEFAULT_OPTS for the current session
+    if [[ -f "$fzf_rc" ]]; then
+        # shellcheck source=/dev/null
+        source "$fzf_rc" 2>/dev/null || true
+    fi
 }
 
 # Apply theme to lazygit
