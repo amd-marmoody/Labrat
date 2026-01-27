@@ -348,7 +348,8 @@ interactive_main_menu() {
     show_banner
     
     local options=(
-        "[1] ${BOLD}Full Install${NC}       - Complete environment with all tools"
+        "[1] ${BOLD}Full Install${NC}       - All tools, confirm each module"
+        "[!] ${BOLD}Full Auto${NC}          - All tools, NO prompts (recommended)"
         "[2] ${BOLD}Developer Suite${NC}    - Shell, editor, fuzzy finding, navigation"
         "[3] ${BOLD}DevOps Essentials${NC}  - Monitoring, networking, terminal tools"
         "[4] ${BOLD}Monitoring Tools${NC}   - btop, htop, glances, nethogs, bandwhich"
@@ -376,6 +377,20 @@ interactive_main_menu() {
             read -rp "Install Full Suite? [Y/n]: " confirm
             if [[ ! "$confirm" =~ ^[Nn] ]]; then
                 read -ra SELECTED_MODULES <<< "${PRESET_MODULES[full]}"
+                PROMPT_SSH_KEYS=true
+            else
+                interactive_main_menu
+                return
+            fi
+            ;;
+        \!|!)
+            # Full auto install - no prompts
+            show_preset_info "full"
+            echo -e "${GREEN}Auto-install mode:${NC} All modules will be installed without prompts"
+            read -rp "Proceed with full auto-install? [Y/n]: " confirm
+            if [[ ! "$confirm" =~ ^[Nn] ]]; then
+                read -ra SELECTED_MODULES <<< "${PRESET_MODULES[full]}"
+                SKIP_CONFIRMATION=true
                 PROMPT_SSH_KEYS=true
             else
                 interactive_main_menu
