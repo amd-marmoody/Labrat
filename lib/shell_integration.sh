@@ -701,34 +701,13 @@ install_shell_hook() {
         source_cmd="[[ -f \"$labrat_rc\" ]] && source \"$labrat_rc\"  # LabRat shell integration"
     fi
     
-    # For bash, try to insert after interactive check; otherwise prepend
+    # For bash, APPEND to the end of .bashrc
+    # This is critical because we need to run AFTER .bashrc sets PS1
+    # (Debian/Ubuntu .bashrc sets PS1 after the interactive check)
     if [[ "$shell_type" == "bash" ]]; then
-        local temp_file=$(mktemp)
-        local inserted=false
-        
-        # Try to insert after "esac" (end of interactive check)
-        while IFS= read -r line || [[ -n "$line" ]]; do
-            echo "$line" >> "$temp_file"
-            if [[ "$line" == "esac" ]] && [[ "$inserted" == "false" ]]; then
-                echo "" >> "$temp_file"
-                echo "# LabRat: Load shell configuration" >> "$temp_file"
-                echo "$source_cmd" >> "$temp_file"
-                echo "" >> "$temp_file"
-                inserted=true
-            fi
-        done < "$shell_rc"
-        
-        # If esac not found, prepend
-        if [[ "$inserted" == "false" ]]; then
-            {
-                echo "# LabRat: Load shell configuration"
-                echo "$source_cmd"
-                echo ""
-                cat "$shell_rc"
-            } > "$temp_file"
-        fi
-        
-        mv "$temp_file" "$shell_rc"
+        echo "" >> "$shell_rc"
+        echo "# LabRat: Load shell configuration (must be at end to override PS1)" >> "$shell_rc"
+        echo "$source_cmd" >> "$shell_rc"
     else
         # For zsh and fish, prepend
         local temp_file=$(mktemp)
