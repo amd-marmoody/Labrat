@@ -215,6 +215,18 @@ fi
 unset LABRAT_BASH_MODULES
 
 # ============================================================================
+# Theme Configuration
+# ============================================================================
+
+# Source fzf theme (sets FZF_DEFAULT_OPTS with colors)
+LABRAT_FZF_THEME="${XDG_CONFIG_HOME:-$HOME/.config}/labrat/fzf-theme.sh"
+if [[ -f "$LABRAT_FZF_THEME" ]]; then
+    # shellcheck source=/dev/null
+    source "$LABRAT_FZF_THEME"
+fi
+unset LABRAT_FZF_THEME
+
+# ============================================================================
 # LabRat Menu Hotkey (Alt+M)
 # ============================================================================
 
@@ -295,6 +307,17 @@ if [[ -d "$LABRAT_ZSH_MODULES" ]]; then
     unset module_file
 fi
 unset LABRAT_ZSH_MODULES
+
+# ============================================================================
+# Theme Configuration
+# ============================================================================
+
+# Source fzf theme (sets FZF_DEFAULT_OPTS with colors)
+LABRAT_FZF_THEME="${XDG_CONFIG_HOME:-$HOME/.config}/labrat/fzf-theme.sh"
+if [[ -f "$LABRAT_FZF_THEME" ]]; then
+    source "$LABRAT_FZF_THEME"
+fi
+unset LABRAT_FZF_THEME
 
 # ============================================================================
 # LabRat Menu Hotkey (Alt+M)

@@ -1,0 +1,569 @@
+#!/usr/bin/env bash
+#
+# labrat-theme - Master theme switcher for all LabRat tools
+# Switch between color themes across bat, btop, fzf, lazygit, starship, and tmux
+#
+# Usage:
+#   labrat-theme                 # Interactive selection
+#   labrat-theme <theme-name>    # Set specific theme family
+#   labrat-theme --list          # List available themes
+#   labrat-theme --current       # Show current theme
+#
+
+set -euo pipefail
+
+# Configuration
+LABRAT_DATA_DIR="${LABRAT_DATA_DIR:-$HOME/.local/share/labrat}"
+LABRAT_CONFIG_DIR="${LABRAT_CONFIG_DIR:-$LABRAT_DATA_DIR/configs}"
+THEME_MARKER="${LABRAT_DATA_DIR}/current-theme"
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+# Available theme families
+declare -A THEME_FAMILIES=(
+    ["catppuccin-mocha"]="Dark warm theme (Catppuccin)"
+    ["catppuccin-latte"]="Light theme (Catppuccin)"
+    ["catppuccin-frappe"]="Dark muted theme (Catppuccin)"
+    ["catppuccin-macchiato"]="Dark blue theme (Catppuccin)"
+    ["tokyo-night"]="VS Code inspired dark theme"
+    ["dracula"]="Purple/pink dark theme"
+    ["nord"]="Arctic blue-grey theme"
+    ["gruvbox"]="Retro warm dark theme"
+    ["onedark"]="Atom One Dark theme"
+    ["solarized-dark"]="Classic Solarized dark"
+    ["solarized-light"]="Classic Solarized light"
+)
+
+# Theme to tool mappings
+# Format: tool_theme_name for each theme family
+declare -A BAT_THEMES=(
+    ["catppuccin-mocha"]="Catppuccin Mocha"
+    ["catppuccin-latte"]="Catppuccin Latte"
+    ["catppuccin-frappe"]="Catppuccin Frappe"
+    ["catppuccin-macchiato"]="Catppuccin Macchiato"
+    ["tokyo-night"]="TwoDark"
+    ["dracula"]="Dracula"
+    ["nord"]="Nord"
+    ["gruvbox"]="gruvbox-dark"
+    ["onedark"]="OneHalfDark"
+    ["solarized-dark"]="Solarized (dark)"
+    ["solarized-light"]="Solarized (light)"
+)
+
+declare -A BTOP_THEMES=(
+    ["catppuccin-mocha"]="catppuccin_mocha"
+    ["catppuccin-latte"]="catppuccin_latte"
+    ["catppuccin-frappe"]="catppuccin_frappe"
+    ["catppuccin-macchiato"]="catppuccin_macchiato"
+    ["tokyo-night"]="tokyo-night"
+    ["dracula"]="dracula"
+    ["nord"]="nord"
+    ["gruvbox"]="gruvbox_dark"
+    ["onedark"]="onedark"
+    ["solarized-dark"]="solarized_dark"
+    ["solarized-light"]="solarized_light"
+)
+
+declare -A TMUX_THEMES=(
+    ["catppuccin-mocha"]="catppuccin-mocha"
+    ["catppuccin-latte"]="catppuccin-latte"
+    ["catppuccin-frappe"]="catppuccin-frappe"
+    ["catppuccin-macchiato"]="catppuccin-macchiato"
+    ["tokyo-night"]="tokyo-night"
+    ["dracula"]="dracula"
+    ["nord"]="nord"
+    ["gruvbox"]="gruvbox-dark"
+    ["onedark"]="onedark"
+    ["solarized-dark"]="solarized-dark"
+    ["solarized-light"]="solarized-light"
+)
+
+declare -A STARSHIP_THEMES=(
+    ["catppuccin-mocha"]="labrat"
+    ["catppuccin-latte"]="labrat"
+    ["catppuccin-frappe"]="labrat"
+    ["catppuccin-macchiato"]="labrat"
+    ["tokyo-night"]="tokyo-night"
+    ["dracula"]="pastel-powerline"
+    ["nord"]="nerd-font-symbols"
+    ["gruvbox"]="gruvbox-rainbow"
+    ["onedark"]="labrat"
+    ["solarized-dark"]="plain-text"
+    ["solarized-light"]="plain-text"
+)
+
+# Ensure data directory exists
+mkdir -p "$LABRAT_DATA_DIR"
+
+# Get current theme
+get_current() {
+    if [[ -f "$THEME_MARKER" ]]; then
+        cat "$THEME_MARKER"
+    else
+        echo "catppuccin-mocha"
+    fi
+}
+
+# List available themes
+list_themes() {
+    local current
+    current=$(get_current)
+    
+    echo -e "${BOLD}${CYAN}Available Theme Families:${NC}"
+    echo ""
+    
+    echo -e "${BOLD}Catppuccin:${NC}"
+    for theme in catppuccin-mocha catppuccin-latte catppuccin-frappe catppuccin-macchiato; do
+        if [[ "$theme" == "$current" ]]; then
+            echo -e "  ${GREEN}●${NC} ${CYAN}${BOLD}$theme${NC} - ${THEME_FAMILIES[$theme]} ${GREEN}(current)${NC}"
+        else
+            echo -e "  ○ $theme - ${THEME_FAMILIES[$theme]}"
+        fi
+    done
+    
+    echo -e "\n${BOLD}Popular:${NC}"
+    for theme in tokyo-night dracula nord gruvbox onedark; do
+        if [[ "$theme" == "$current" ]]; then
+            echo -e "  ${GREEN}●${NC} ${CYAN}${BOLD}$theme${NC} - ${THEME_FAMILIES[$theme]} ${GREEN}(current)${NC}"
+        else
+            echo -e "  ○ $theme - ${THEME_FAMILIES[$theme]}"
+        fi
+    done
+    
+    echo -e "\n${BOLD}Classic:${NC}"
+    for theme in solarized-dark solarized-light; do
+        if [[ "$theme" == "$current" ]]; then
+            echo -e "  ${GREEN}●${NC} ${CYAN}${BOLD}$theme${NC} - ${THEME_FAMILIES[$theme]} ${GREEN}(current)${NC}"
+        else
+            echo -e "  ○ $theme - ${THEME_FAMILIES[$theme]}"
+        fi
+    done
+    echo ""
+}
+
+# Show current theme
+show_current() {
+    local current
+    current=$(get_current)
+    echo -e "Current theme: ${CYAN}${BOLD}$current${NC}"
+    if [[ -n "${THEME_FAMILIES[$current]:-}" ]]; then
+        echo -e "Description: ${THEME_FAMILIES[$current]}"
+    fi
+}
+
+# Apply theme to bat
+apply_bat_theme() {
+    local theme="$1"
+    local bat_theme="${BAT_THEMES[$theme]:-TwoDark}"
+    local bat_config="$HOME/.config/bat/config"
+    
+    mkdir -p "$(dirname "$bat_config")"
+    
+    # Update or create bat config
+    if [[ -f "$bat_config" ]]; then
+        if grep -q "^--theme=" "$bat_config"; then
+            sed -i "s/^--theme=.*/--theme=\"$bat_theme\"/" "$bat_config"
+        else
+            echo "--theme=\"$bat_theme\"" >> "$bat_config"
+        fi
+    else
+        echo "--theme=\"$bat_theme\"" > "$bat_config"
+    fi
+    
+    echo -e "  ${GREEN}✓${NC} bat → $bat_theme"
+}
+
+# Apply theme to btop
+apply_btop_theme() {
+    local theme="$1"
+    local btop_theme="${BTOP_THEMES[$theme]:-catppuccin_mocha}"
+    local btop_config="$HOME/.config/btop/btop.conf"
+    local theme_source="${LABRAT_CONFIG_DIR}/btop/themes/${btop_theme}.theme"
+    local theme_dest="$HOME/.config/btop/themes/${btop_theme}.theme"
+    
+    mkdir -p "$HOME/.config/btop/themes"
+    
+    # Copy theme file if it exists
+    if [[ -f "$theme_source" ]]; then
+        cp "$theme_source" "$theme_dest"
+    fi
+    
+    # Update btop config
+    if [[ -f "$btop_config" ]]; then
+        if grep -q "^color_theme" "$btop_config"; then
+            sed -i "s/^color_theme.*/color_theme = \"$btop_theme\"/" "$btop_config"
+        else
+            echo "color_theme = \"$btop_theme\"" >> "$btop_config"
+        fi
+    else
+        mkdir -p "$(dirname "$btop_config")"
+        echo "color_theme = \"$btop_theme\"" > "$btop_config"
+    fi
+    
+    echo -e "  ${GREEN}✓${NC} btop → $btop_theme"
+}
+
+# Apply theme to fzf
+apply_fzf_theme() {
+    local theme="$1"
+    local fzf_theme_file=""
+    
+    # Map theme family to fzf theme file
+    case "$theme" in
+        catppuccin-mocha)
+            fzf_theme_file="${LABRAT_CONFIG_DIR}/fzf/themes/catppuccin-fzf-mocha.sh"
+            ;;
+        catppuccin-latte)
+            fzf_theme_file="${LABRAT_CONFIG_DIR}/fzf/themes/catppuccin-fzf-latte.sh"
+            ;;
+        catppuccin-frappe)
+            fzf_theme_file="${LABRAT_CONFIG_DIR}/fzf/themes/catppuccin-fzf-frappe.sh"
+            ;;
+        catppuccin-macchiato)
+            fzf_theme_file="${LABRAT_CONFIG_DIR}/fzf/themes/catppuccin-fzf-macchiato.sh"
+            ;;
+        *)
+            # Generate built-in fzf themes for other theme families
+            fzf_theme_file=""
+            ;;
+    esac
+    
+    # Create fzf theme file for shell sourcing
+    local fzf_rc="$HOME/.config/labrat/fzf-theme.sh"
+    mkdir -p "$(dirname "$fzf_rc")"
+    
+    if [[ -n "$fzf_theme_file" ]] && [[ -f "$fzf_theme_file" ]]; then
+        cp "$fzf_theme_file" "$fzf_rc"
+    else
+        # Generate theme based on theme family
+        case "$theme" in
+            tokyo-night)
+                cat > "$fzf_rc" << 'EOF'
+export FZF_DEFAULT_OPTS=" \
+--color=bg+:#292e42,bg:#1a1b26,spinner:#bb9af7,hl:#565f89 \
+--color=fg:#c0caf5,header:#565f89,info:#7aa2f7,pointer:#bb9af7 \
+--color=marker:#9ece6a,fg+:#c0caf5,prompt:#7aa2f7,hl+:#bb9af7"
+EOF
+                ;;
+            dracula)
+                cat > "$fzf_rc" << 'EOF'
+export FZF_DEFAULT_OPTS=" \
+--color=bg+:#44475a,bg:#282a36,spinner:#ff79c6,hl:#6272a4 \
+--color=fg:#f8f8f2,header:#6272a4,info:#8be9fd,pointer:#ff79c6 \
+--color=marker:#50fa7b,fg+:#f8f8f2,prompt:#bd93f9,hl+:#ff79c6"
+EOF
+                ;;
+            nord)
+                cat > "$fzf_rc" << 'EOF'
+export FZF_DEFAULT_OPTS=" \
+--color=bg+:#3B4252,bg:#2E3440,spinner:#81A1C1,hl:#616E88 \
+--color=fg:#D8DEE9,header:#616E88,info:#81A1C1,pointer:#81A1C1 \
+--color=marker:#81A1C1,fg+:#D8DEE9,prompt:#81A1C1,hl+:#81A1C1"
+EOF
+                ;;
+            gruvbox)
+                cat > "$fzf_rc" << 'EOF'
+export FZF_DEFAULT_OPTS=" \
+--color=bg+:#3c3836,bg:#282828,spinner:#fb4934,hl:#928374 \
+--color=fg:#ebdbb2,header:#928374,info:#8ec07c,pointer:#fb4934 \
+--color=marker:#fb4934,fg+:#ebdbb2,prompt:#fb4934,hl+:#fb4934"
+EOF
+                ;;
+            onedark)
+                cat > "$fzf_rc" << 'EOF'
+export FZF_DEFAULT_OPTS=" \
+--color=bg+:#3e4452,bg:#282c34,spinner:#c678dd,hl:#5c6370 \
+--color=fg:#abb2bf,header:#5c6370,info:#61afef,pointer:#c678dd \
+--color=marker:#98c379,fg+:#abb2bf,prompt:#61afef,hl+:#c678dd"
+EOF
+                ;;
+            solarized-dark)
+                cat > "$fzf_rc" << 'EOF'
+export FZF_DEFAULT_OPTS=" \
+--color=bg+:#073642,bg:#002b36,spinner:#2aa198,hl:#586e75 \
+--color=fg:#839496,header:#586e75,info:#268bd2,pointer:#2aa198 \
+--color=marker:#859900,fg+:#93a1a1,prompt:#268bd2,hl+:#2aa198"
+EOF
+                ;;
+            solarized-light)
+                cat > "$fzf_rc" << 'EOF'
+export FZF_DEFAULT_OPTS=" \
+--color=bg+:#eee8d5,bg:#fdf6e3,spinner:#2aa198,hl:#93a1a1 \
+--color=fg:#657b83,header:#93a1a1,info:#268bd2,pointer:#2aa198 \
+--color=marker:#859900,fg+:#586e75,prompt:#268bd2,hl+:#2aa198"
+EOF
+                ;;
+            *)
+                # Default to catppuccin-mocha
+                cat > "$fzf_rc" << 'EOF'
+export FZF_DEFAULT_OPTS=" \
+--color=bg+:#313244,bg:#1E1E2E,spinner:#F5E0DC,hl:#F38BA8 \
+--color=fg:#CDD6F4,header:#F38BA8,info:#CBA6F7,pointer:#F5E0DC \
+--color=marker:#B4BEFE,fg+:#CDD6F4,prompt:#CBA6F7,hl+:#F38BA8 \
+--color=selected-bg:#45475A \
+--color=border:#6C7086,label:#CDD6F4"
+EOF
+                ;;
+        esac
+    fi
+    
+    echo -e "  ${GREEN}✓${NC} fzf → $theme"
+}
+
+# Apply theme to lazygit
+apply_lazygit_theme() {
+    local theme="$1"
+    local lazygit_config="$HOME/.config/lazygit/config.yml"
+    local theme_dir=""
+    
+    mkdir -p "$(dirname "$lazygit_config")"
+    
+    # Map theme family to lazygit theme directory
+    case "$theme" in
+        catppuccin-mocha)
+            theme_dir="${LABRAT_CONFIG_DIR}/lazygit/themes/mocha"
+            ;;
+        catppuccin-latte)
+            theme_dir="${LABRAT_CONFIG_DIR}/lazygit/themes/latte"
+            ;;
+        catppuccin-frappe)
+            theme_dir="${LABRAT_CONFIG_DIR}/lazygit/themes/frappe"
+            ;;
+        catppuccin-macchiato)
+            theme_dir="${LABRAT_CONFIG_DIR}/lazygit/themes/macchiato"
+            ;;
+    esac
+    
+    # For Catppuccin themes, use the blue accent variant
+    if [[ -n "$theme_dir" ]] && [[ -f "$theme_dir/blue.yml" ]]; then
+        # Merge theme into existing config or create new
+        if [[ -f "$lazygit_config" ]]; then
+            # Create backup
+            cp "$lazygit_config" "${lazygit_config}.backup"
+            
+            # Remove existing gui.theme section and add new one
+            # Using a simple approach - append theme to end
+            # (lazygit will use the last occurrence)
+            local temp_file
+            temp_file=$(mktemp)
+            
+            # Filter out existing theme lines and append new theme
+            grep -v "^gui:" "$lazygit_config" 2>/dev/null | \
+            grep -v "^  theme:" | \
+            grep -v "^    activeBorderColor:" | \
+            grep -v "^    inactiveBorderColor:" | \
+            grep -v "^    optionsTextColor:" | \
+            grep -v "^    selectedLineBgColor:" | \
+            grep -v "^    cherryPickedCommit" | \
+            grep -v "^    unstagedChangesColor:" | \
+            grep -v "^    defaultFgColor:" | \
+            grep -v "^    searchingActiveBorderColor:" | \
+            grep -v "^  authorColors:" | \
+            grep -v "^    '\*':" > "$temp_file" 2>/dev/null || true
+            
+            cat "$temp_file" > "$lazygit_config"
+            rm "$temp_file"
+            
+            echo "" >> "$lazygit_config"
+            cat "$theme_dir/blue.yml" >> "$lazygit_config"
+        else
+            cat "$theme_dir/blue.yml" > "$lazygit_config"
+        fi
+        echo -e "  ${GREEN}✓${NC} lazygit → $theme (blue accent)"
+    else
+        echo -e "  ${YELLOW}○${NC} lazygit → using default (no theme file for $theme)"
+    fi
+}
+
+# Apply theme to starship
+apply_starship_theme() {
+    local theme="$1"
+    local starship_preset="${STARSHIP_THEMES[$theme]:-labrat}"
+    
+    # Use starship-preset command if available
+    if command -v starship-preset &>/dev/null; then
+        starship-preset "$starship_preset" &>/dev/null && \
+            echo -e "  ${GREEN}✓${NC} starship → $starship_preset" || \
+            echo -e "  ${YELLOW}○${NC} starship → preset $starship_preset not found"
+    else
+        local preset_file="${LABRAT_CONFIG_DIR}/starship/presets/${starship_preset}.toml"
+        local starship_config="$HOME/.config/starship.toml"
+        
+        if [[ -f "$preset_file" ]]; then
+            ln -sf "$preset_file" "$starship_config"
+            echo -e "  ${GREEN}✓${NC} starship → $starship_preset"
+        else
+            echo -e "  ${YELLOW}○${NC} starship → preset $starship_preset not found"
+        fi
+    fi
+}
+
+# Apply theme to tmux
+apply_tmux_theme() {
+    local theme="$1"
+    local tmux_theme="${TMUX_THEMES[$theme]:-catppuccin-mocha}"
+    
+    # Use tmux-theme command if available
+    if command -v tmux-theme &>/dev/null; then
+        # tmux-theme may prompt for restart, run non-interactively
+        echo "$tmux_theme" | tmux-theme "$tmux_theme" 2>/dev/null && \
+            echo -e "  ${GREEN}✓${NC} tmux → $tmux_theme" || \
+            echo -e "  ${YELLOW}○${NC} tmux → theme $tmux_theme (may need restart)"
+    else
+        echo -e "  ${YELLOW}○${NC} tmux → tmux-theme command not available"
+    fi
+}
+
+# Apply theme to all tools
+apply_theme() {
+    local theme="$1"
+    
+    # Validate theme
+    if [[ -z "${THEME_FAMILIES[$theme]:-}" ]]; then
+        echo -e "${RED}Error: Unknown theme '$theme'${NC}" >&2
+        echo "Available themes:"
+        list_themes
+        return 1
+    fi
+    
+    echo -e "${BOLD}${CYAN}Applying theme: $theme${NC}"
+    echo -e "${THEME_FAMILIES[$theme]}"
+    echo ""
+    
+    # Apply to each tool
+    apply_bat_theme "$theme"
+    apply_btop_theme "$theme"
+    apply_fzf_theme "$theme"
+    apply_lazygit_theme "$theme"
+    apply_starship_theme "$theme"
+    apply_tmux_theme "$theme"
+    
+    # Save current theme
+    echo "$theme" > "$THEME_MARKER"
+    
+    echo ""
+    echo -e "${GREEN}✓${NC} Theme applied: ${BOLD}$theme${NC}"
+    echo ""
+    echo -e "${YELLOW}Note:${NC} Some changes require:"
+    echo "  • Restart your shell (or source ~/.bashrc / ~/.zshrc)"
+    echo "  • Restart tmux (tmux kill-server && tmux)"
+    echo "  • Restart any running tools (btop, lazygit, etc.)"
+}
+
+# Interactive theme selection
+interactive_select() {
+    local current
+    current=$(get_current)
+    
+    echo -e "${BOLD}${CYAN}LabRat Theme Switcher${NC}"
+    echo ""
+    
+    local -a all_themes=(
+        catppuccin-mocha catppuccin-latte catppuccin-frappe catppuccin-macchiato
+        tokyo-night dracula nord gruvbox onedark
+        solarized-dark solarized-light
+    )
+    
+    echo -e "${BOLD}Select a theme:${NC}\n"
+    
+    local i=1
+    for theme in "${all_themes[@]}"; do
+        if [[ "$theme" == "$current" ]]; then
+            echo -e "  ${GREEN}[$i]${NC} ${CYAN}${BOLD}$theme${NC} - ${THEME_FAMILIES[$theme]} ${GREEN}(current)${NC}"
+        else
+            echo -e "  [$i] $theme - ${THEME_FAMILIES[$theme]}"
+        fi
+        ((i++))
+    done
+    
+    echo ""
+    read -rp "Enter number or theme name (q to quit): " selection
+    
+    if [[ "$selection" == "q" || "$selection" == "Q" ]]; then
+        echo "Cancelled."
+        return 0
+    fi
+    
+    # Check if selection is a number
+    if [[ "$selection" =~ ^[0-9]+$ ]]; then
+        if ((selection >= 1 && selection <= ${#all_themes[@]})); then
+            apply_theme "${all_themes[$((selection-1))]}"
+        else
+            echo -e "${RED}Invalid selection (1-${#all_themes[@]})${NC}"
+            return 1
+        fi
+    else
+        apply_theme "$selection"
+    fi
+}
+
+# Show help
+show_help() {
+    cat << EOF
+${BOLD}labrat-theme${NC} - Master theme switcher for LabRat tools
+
+${BOLD}USAGE:${NC}
+    labrat-theme                 Interactive theme selector
+    labrat-theme <theme>         Set a specific theme family
+    labrat-theme --list          List available themes
+    labrat-theme --current       Show current theme
+    labrat-theme --help          Show this help
+
+${BOLD}SUPPORTED TOOLS:${NC}
+    • bat         Syntax highlighting pager
+    • btop        System monitor
+    • fzf         Fuzzy finder
+    • lazygit     Git TUI
+    • starship    Shell prompt
+    • tmux        Terminal multiplexer
+
+${BOLD}THEME FAMILIES:${NC}
+    catppuccin-mocha      Dark warm theme
+    catppuccin-latte      Light theme
+    tokyo-night           VS Code inspired dark
+    dracula               Purple/pink dark
+    nord                  Arctic blue-grey
+    gruvbox               Retro warm dark
+    onedark               Atom One Dark
+    solarized-dark        Classic Solarized dark
+    solarized-light       Classic Solarized light
+
+${BOLD}EXAMPLES:${NC}
+    labrat-theme catppuccin-mocha    Switch all tools to Catppuccin Mocha
+    labrat-theme tokyo-night         Switch to Tokyo Night theme
+
+${BOLD}NOTES:${NC}
+    After switching themes, you may need to:
+    • Restart your shell or source your shell config
+    • Restart tmux: tmux kill-server && tmux
+    • Restart any running tools
+
+EOF
+}
+
+# Main
+case "${1:-}" in
+    --help|-h)
+        show_help
+        ;;
+    --list|-l)
+        list_themes
+        ;;
+    --current|-c)
+        show_current
+        ;;
+    "")
+        interactive_select
+        ;;
+    *)
+        apply_theme "$1"
+        ;;
+esac
