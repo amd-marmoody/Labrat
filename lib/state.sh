@@ -243,27 +243,28 @@ disable_startup_summary() {
     save_preference "startup_summary" "false"
 }
 
-# Check if we should show summary (rate limiting - once per session)
+# Check if we should show summary
+# By default shows every shell reload. Set LABRAT_QUIET=1 to silence.
 should_show_startup_summary() {
-    # Check if disabled
+    # Check if disabled via preference
     if ! is_startup_summary_enabled; then
         return 1
     fi
     
-    # Check environment variable
+    # Check environment variable to quiet output
     if [[ "${LABRAT_QUIET:-}" == "1" ]]; then
         return 1
     fi
     
-    # Check if already shown this session
-    if [[ "${LABRAT_SUMMARY_SHOWN:-}" == "1" ]]; then
-        return 1
-    fi
+    # Check if in non-interactive mode (scripts, etc.)
+    [[ $- != *i* ]] && return 1
     
     return 0
 }
 
-# Mark summary as shown for this session
+# Mark summary as shown (no-op now, kept for compatibility)
 mark_summary_shown() {
-    export LABRAT_SUMMARY_SHOWN=1
+    # Previously exported LABRAT_SUMMARY_SHOWN=1 to show only once
+    # Now we show on every reload by default
+    :
 }

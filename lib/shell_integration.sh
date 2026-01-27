@@ -226,8 +226,8 @@ fi
 # Startup Summary
 # ============================================================================
 
-# Show startup summary (respects LABRAT_QUIET and session state)
-if [[ $- == *i* ]] && [[ -z "${LABRAT_SUMMARY_SHOWN:-}" ]]; then
+# Show startup summary on every shell reload (set LABRAT_QUIET=1 to silence)
+if [[ $- == *i* ]]; then
     LABRAT_LIB_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/labrat/lib"
     if [[ -f "${LABRAT_LIB_DIR}/startup_summary.sh" ]]; then
         source "${LABRAT_LIB_DIR}/startup_summary.sh"
@@ -303,8 +303,8 @@ fi
 # Startup Summary
 # ============================================================================
 
-# Show startup summary (respects LABRAT_QUIET and session state)
-if [[ -o interactive ]] && [[ -z "${LABRAT_SUMMARY_SHOWN:-}" ]]; then
+# Show startup summary on every shell reload (set LABRAT_QUIET=1 to silence)
+if [[ -o interactive ]]; then
     LABRAT_LIB_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/labrat/lib"
     if [[ -f "${LABRAT_LIB_DIR}/startup_summary.sh" ]]; then
         source "${LABRAT_LIB_DIR}/startup_summary.sh"
