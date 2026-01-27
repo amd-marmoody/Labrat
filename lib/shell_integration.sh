@@ -828,6 +828,27 @@ clean_legacy_shell_integration() {
 # Full Setup / Teardown
 # ============================================================================
 
+# Deploy lib files to ~/.config/labrat/lib/ for runtime access
+deploy_lib_files() {
+    local target_lib_dir="${LABRAT_SHELL_CONFIG_DIR}/lib"
+    ensure_dir "$target_lib_dir"
+    
+    # Source lib directory (where install.sh runs from)
+    local source_lib_dir="${LABRAT_LIB_DIR:-$(dirname "${BASH_SOURCE[0]}")}"
+    
+    # Copy required lib files
+    local lib_files=("colors.sh" "state.sh" "startup_summary.sh" "common.sh")
+    
+    for lib_file in "${lib_files[@]}"; do
+        if [[ -f "${source_lib_dir}/${lib_file}" ]]; then
+            cp "${source_lib_dir}/${lib_file}" "${target_lib_dir}/${lib_file}"
+            log_debug "Deployed ${lib_file} to ${target_lib_dir}/"
+        fi
+    done
+    
+    log_success "Lib files deployed to ${target_lib_dir}/"
+}
+
 # Complete shell integration setup
 # Called during labrat installation
 setup_shell_integration() {
@@ -835,6 +856,9 @@ setup_shell_integration() {
     
     # Ensure directories exist
     ensure_shell_dirs
+    
+    # Deploy lib files for runtime access
+    deploy_lib_files
     
     # Backup original configs (one-time)
     backup_original_shell_configs
