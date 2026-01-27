@@ -117,7 +117,7 @@ show_compact_summary() {
     local ssh_count
     ssh_count=$(get_loaded_ssh_key_count)
     
-    echo -e "${DIM}🐀 Alt+L menu${NC} ${DIM}│${NC} $keybinds ${DIM}│${NC} ${DIM}SSH: ${ssh_count} key(s)${NC}"
+    echo -e "${DIM}🐀 Alt+M menu${NC} ${DIM}│${NC} $keybinds ${DIM}│${NC} ${DIM}SSH: ${ssh_count} key(s)${NC}"
 }
 
 # Box-style summary (more detailed)
@@ -140,7 +140,7 @@ show_boxed_summary() {
     echo -e "${DIM}┌$(printf '─%.0s' $(seq 1 $width))┐${NC}"
     
     # Header line
-    printf "${DIM}│${NC} ${CYAN}🐀 LabRat${NC} ${DIM}•${NC} ${BOLD}Alt+L${NC} for menu"
+    printf "${DIM}│${NC} ${CYAN}🐀 LabRat${NC} ${DIM}•${NC} ${BOLD}Alt+M${NC} for menu"
     printf "%*s${DIM}│${NC}\n" $((width - 30)) ""
     
     # Separator
@@ -176,7 +176,7 @@ show_boxed_summary() {
 
 # Minimal single line
 show_minimal_summary() {
-    echo -e "${DIM}🐀 LabRat ready • Alt+L for menu${NC}"
+    echo -e "${DIM}🐀 LabRat ready • Alt+M for menu${NC}"
 }
 
 # ============================================================================
@@ -226,15 +226,15 @@ set_summary_style() {
 }
 
 # ============================================================================
-# Alt+L Hotkey Setup
+# Alt+M Hotkey Setup
 # ============================================================================
 
 # Generate bash hotkey binding
 generate_bash_hotkey() {
     cat << 'BASH_HOTKEY'
-# LabRat menu hotkey (Alt+L)
+# LabRat menu hotkey (Alt+M)
 if [[ $- == *i* ]]; then
-    bind '"\el":"labrat-menu\n"'
+    bind '"\em":"labrat-menu\n"'
 fi
 BASH_HOTKEY
 }
@@ -242,21 +242,21 @@ BASH_HOTKEY
 # Generate zsh hotkey binding
 generate_zsh_hotkey() {
     cat << 'ZSH_HOTKEY'
-# LabRat menu hotkey (Alt+L)
+# LabRat menu hotkey (Alt+M)
 labrat-menu-widget() {
     BUFFER="labrat-menu"
     zle accept-line
 }
 zle -N labrat-menu-widget
-bindkey '\el' labrat-menu-widget
+bindkey '\em' labrat-menu-widget
 ZSH_HOTKEY
 }
 
 # Generate fish hotkey binding
 generate_fish_hotkey() {
     cat << 'FISH_HOTKEY'
-# LabRat menu hotkey (Alt+L)
-bind \el 'commandline -r "labrat-menu"; commandline -f execute'
+# LabRat menu hotkey (Alt+M)
+bind \em 'commandline -r "labrat-menu"; commandline -f execute'
 FISH_HOTKEY
 }
 
@@ -269,9 +269,9 @@ generate_bash_startup_snippet() {
     cat << 'BASH_STARTUP'
 # LabRat startup summary and hotkey
 if command -v labrat-menu &>/dev/null; then
-    # Alt+L hotkey
+    # Alt+M hotkey
     if [[ $- == *i* ]]; then
-        bind '"\el":"labrat-menu\n"'
+        bind '"\em":"labrat-menu\n"'
     fi
 fi
 
@@ -290,13 +290,13 @@ generate_zsh_startup_snippet() {
     cat << 'ZSH_STARTUP'
 # LabRat startup summary and hotkey
 if (( $+commands[labrat-menu] )); then
-    # Alt+L hotkey widget
+    # Alt+M hotkey widget
     labrat-menu-widget() {
         BUFFER="labrat-menu"
         zle accept-line
     }
     zle -N labrat-menu-widget
-    bindkey '\el' labrat-menu-widget
+    bindkey '\em' labrat-menu-widget
 fi
 
 # Show startup summary
@@ -314,8 +314,8 @@ generate_fish_startup_snippet() {
     cat << 'FISH_STARTUP'
 # LabRat startup summary and hotkey
 if command -v labrat-menu &>/dev/null
-    # Alt+L hotkey
-    bind \el 'commandline -r "labrat-menu"; commandline -f execute'
+    # Alt+M hotkey
+    bind \em 'commandline -r "labrat-menu"; commandline -f execute'
 end
 
 # Show startup summary

@@ -215,11 +215,11 @@ fi
 unset LABRAT_BASH_MODULES
 
 # ============================================================================
-# LabRat Menu Hotkey (Alt+L)
+# LabRat Menu Hotkey (Alt+M)
 # ============================================================================
 
 if [[ $- == *i* ]] && command -v labrat-menu &>/dev/null; then
-    bind '"\el":"labrat-menu\n"'
+    bind '"\em":"labrat-menu\n"'
 fi
 
 # ============================================================================
@@ -287,7 +287,7 @@ fi
 unset LABRAT_ZSH_MODULES
 
 # ============================================================================
-# LabRat Menu Hotkey (Alt+L)
+# LabRat Menu Hotkey (Alt+M)
 # ============================================================================
 
 if (( $+commands[labrat-menu] )); then
@@ -296,7 +296,7 @@ if (( $+commands[labrat-menu] )); then
         zle accept-line
     }
     zle -N labrat-menu-widget
-    bindkey '\el' labrat-menu-widget
+    bindkey '\em' labrat-menu-widget
 fi
 
 # ============================================================================
