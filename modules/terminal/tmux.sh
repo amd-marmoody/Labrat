@@ -660,7 +660,7 @@ set -g @plugin 'tmux-plugins/tmux-sensible'
 set -g @plugin 'tmux-plugins/tmux-resurrect'
 set -g @plugin 'tmux-plugins/tmux-continuum'
 set -g @plugin 'tmux-plugins/tmux-yank'
-set -g @plugin 'tmux-plugins/tmux-pain-control'
+# NOTE: tmux-pain-control removed - caused backspace issues (^H mapped to pane switching)
 
 # Plugin settings
 set -g @resurrect-capture-pane-contents 'on'
