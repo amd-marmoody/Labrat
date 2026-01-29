@@ -1,0 +1,182 @@
+#!/usr/bin/env bash
+# ============================================================================
+# LabRat fzf Theme Switcher
+# Switch between fzf color themes
+# ============================================================================
+
+set -euo pipefail
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+FZF_CONFIG_DIR="${HOME}/.config/labrat/fzf"
+FZF_THEME_DIR="${FZF_CONFIG_DIR}/themes"
+FZF_CURRENT_THEME="${FZF_CONFIG_DIR}/current-theme.sh"
+FZF_STATE_FILE="${HOME}/.local/state/labrat/fzf_theme"
+
+# Get script directory (for finding labrat themes)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LABRAT_DIR="$(dirname "$SCRIPT_DIR")"
+LABRAT_THEME_DIR="${LABRAT_DIR}/configs/fzf/themes"
+
+show_help() {
+    cat << EOF
+${BOLD}fzf-theme${NC} - Switch fzf color themes
+
+${BOLD}USAGE:${NC}
+    fzf-theme [THEME_NAME]
+    fzf-theme --list
+    fzf-theme --current
+    fzf-theme --help
+
+${BOLD}OPTIONS:${NC}
+    --list, -l      List available themes
+    --current, -c   Show current theme
+    --help, -h      Show this help
+
+${BOLD}AVAILABLE THEMES:${NC}
+    Catppuccin:
+        catppuccin-mocha     Dark warm theme
+        catppuccin-latte     Light theme
+        catppuccin-frappe    Dark muted theme
+        catppuccin-macchiato Dark blue theme
+    
+    Gruvbox:
+        gruvbox-dark         Retro dark theme
+        gruvbox-light        Retro light theme
+    
+    Other:
+        tokyo-night          Tokyo Night theme
+        nord                 Nord theme
+        dracula              Dracula theme
+
+${BOLD}EXAMPLES:${NC}
+    fzf-theme catppuccin-mocha
+    fzf-theme tokyo-night
+    fzf-theme --list
+EOF
+}
+
+get_current_theme() {
+    if [[ -f "$FZF_STATE_FILE" ]]; then
+        cat "$FZF_STATE_FILE"
+    elif [[ -L "$FZF_CURRENT_THEME" ]]; then
+        basename "$(readlink "$FZF_CURRENT_THEME")" .sh
+    else
+        echo "catppuccin-mocha"
+    fi
+}
+
+list_themes() {
+    local current_theme
+    current_theme=$(get_current_theme)
+    
+    echo -e "${BOLD}Available fzf themes:${NC}\n"
+    
+    echo -e "${CYAN}Catppuccin:${NC}"
+    for theme in catppuccin-mocha catppuccin-latte catppuccin-frappe catppuccin-macchiato; do
+        local desc=""
+        case "$theme" in
+            catppuccin-mocha) desc="Dark warm theme" ;;
+            catppuccin-latte) desc="Light theme" ;;
+            catppuccin-frappe) desc="Dark muted theme" ;;
+            catppuccin-macchiato) desc="Dark blue theme" ;;
+        esac
+        if [[ "$theme" == "$current_theme" ]]; then
+            echo -e "  ${GREEN}●${NC} ${BOLD}${theme}${NC} - ${desc} ${GREEN}(current)${NC}"
+        else
+            echo -e "  ○ ${theme} - ${desc}"
+        fi
+    done
+    
+    echo -e "\n${CYAN}Gruvbox:${NC}"
+    for theme in gruvbox-dark gruvbox-light; do
+        local desc=""
+        case "$theme" in
+            gruvbox-dark) desc="Retro dark theme" ;;
+            gruvbox-light) desc="Retro light theme" ;;
+        esac
+        if [[ "$theme" == "$current_theme" ]]; then
+            echo -e "  ${GREEN}●${NC} ${BOLD}${theme}${NC} - ${desc} ${GREEN}(current)${NC}"
+        else
+            echo -e "  ○ ${theme} - ${desc}"
+        fi
+    done
+    
+    echo -e "\n${CYAN}Other:${NC}"
+    for theme in tokyo-night nord dracula; do
+        local desc=""
+        case "$theme" in
+            tokyo-night) desc="Tokyo Night theme" ;;
+            nord) desc="Nord polar theme" ;;
+            dracula) desc="Dracula dark theme" ;;
+        esac
+        if [[ "$theme" == "$current_theme" ]]; then
+            echo -e "  ${GREEN}●${NC} ${BOLD}${theme}${NC} - ${desc} ${GREEN}(current)${NC}"
+        else
+            echo -e "  ○ ${theme} - ${desc}"
+        fi
+    done
+}
+
+set_theme() {
+    local theme_name="$1"
+    
+    # Ensure directories exist
+    mkdir -p "$FZF_CONFIG_DIR"
+    mkdir -p "$FZF_THEME_DIR"
+    mkdir -p "$(dirname "$FZF_STATE_FILE")"
+    
+    # Check if theme file exists in user theme dir
+    if [[ ! -f "${FZF_THEME_DIR}/${theme_name}.sh" ]]; then
+        # Try to copy from labrat themes
+        if [[ -f "${LABRAT_THEME_DIR}/${theme_name}.sh" ]]; then
+            cp "${LABRAT_THEME_DIR}/${theme_name}.sh" "${FZF_THEME_DIR}/${theme_name}.sh"
+            echo -e "${GREEN}Copied theme from LabRat: ${theme_name}${NC}"
+        else
+            echo -e "${RED}Error: Theme '${theme_name}' not found${NC}"
+            echo -e "Available themes: catppuccin-mocha, catppuccin-latte, catppuccin-frappe, catppuccin-macchiato,"
+            echo -e "                  gruvbox-dark, gruvbox-light, tokyo-night, nord, dracula"
+            return 1
+        fi
+    fi
+    
+    # Create/update symlink to current theme
+    rm -f "$FZF_CURRENT_THEME"
+    ln -sf "${FZF_THEME_DIR}/${theme_name}.sh" "$FZF_CURRENT_THEME"
+    
+    # Save theme name to state file
+    echo "$theme_name" > "$FZF_STATE_FILE"
+    
+    # Apply immediately in current shell by exporting
+    # Clear previous FZF_DEFAULT_OPTS color settings and re-source
+    unset FZF_DEFAULT_OPTS
+    source "$FZF_CURRENT_THEME"
+    
+    echo -e "${GREEN}✓${NC} fzf theme set to: ${BOLD}${theme_name}${NC}"
+    echo -e "${YELLOW}Note:${NC} New shells will use this theme automatically."
+    echo -e "      Run '${CYAN}source ~/.bashrc${NC}' or '${CYAN}source ~/.zshrc${NC}' to apply in current shell."
+}
+
+# Main
+case "${1:-}" in
+    --help|-h)
+        show_help
+        ;;
+    --list|-l|"")
+        list_themes
+        ;;
+    --current|-c)
+        current=$(get_current_theme)
+        echo -e "Current fzf theme: ${BOLD}${current}${NC}"
+        ;;
+    *)
+        set_theme "$1"
+        ;;
+esac

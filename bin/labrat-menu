@@ -689,29 +689,20 @@ menu_fzf_theme() {
         "catppuccin-latte"
         "catppuccin-frappe"
         "catppuccin-macchiato"
+        "gruvbox-dark"
+        "gruvbox-light"
         "tokyo-night"
-        "dracula"
         "nord"
-        "gruvbox"
-        "onedark"
-        "solarized-dark"
-        "solarized-light"
+        "dracula"
     )
     
     show_menu_header "fzf Theme"
     
-    # Get current theme from fzf-theme.sh if it exists
-    local current="default"
-    local fzf_rc="$HOME/.config/labrat/fzf-theme.sh"
-    if [[ -f "$fzf_rc" ]]; then
-        # Try to detect theme from colors
-        if grep -q "1E1E2E" "$fzf_rc"; then current="catppuccin-mocha"
-        elif grep -q "fdf6e3" "$fzf_rc"; then current="solarized-light"
-        elif grep -q "1a1b26" "$fzf_rc"; then current="tokyo-night"
-        elif grep -q "282a36" "$fzf_rc"; then current="dracula"
-        elif grep -q "2E3440" "$fzf_rc"; then current="nord"
-        elif grep -q "282828" "$fzf_rc"; then current="gruvbox"
-        fi
+    # Get current theme
+    local current="catppuccin-mocha"
+    local state_file="$HOME/.local/state/labrat/fzf_theme"
+    if [[ -f "$state_file" ]]; then
+        current=$(cat "$state_file")
     fi
     
     if has_fzf; then
@@ -730,7 +721,9 @@ menu_fzf_theme() {
         echo ""
         local i=1
         for theme in "${themes[@]}"; do
-            printf "  [%2d] %s\n" "$i" "$theme"
+            local marker=""
+            [[ "$theme" == "$current" ]] && marker=" ${GREEN}(current)${NC}"
+            printf "  [%2d] %s%b\n" "$i" "$theme" "$marker"
             ((i++))
         done
         echo ""
@@ -754,104 +747,16 @@ menu_fzf_theme() {
 
 apply_fzf_theme_individual() {
     local theme="$1"
-    local fzf_rc="$HOME/.config/labrat/fzf-theme.sh"
-    local config_dir="${LABRAT_DATA_DIR:-$HOME/.local/share/labrat}/configs/fzf/themes"
     
-    mkdir -p "$(dirname "$fzf_rc")"
-    
-    # Check for Catppuccin theme files
-    case "$theme" in
-        catppuccin-mocha)
-            local src="$config_dir/catppuccin-fzf-mocha.sh"
-            [[ -f "$src" ]] && cp "$src" "$fzf_rc" && echo -e "${GREEN}✓${NC} fzf theme set to: $theme" && return
-            ;;
-        catppuccin-latte)
-            local src="$config_dir/catppuccin-fzf-latte.sh"
-            [[ -f "$src" ]] && cp "$src" "$fzf_rc" && echo -e "${GREEN}✓${NC} fzf theme set to: $theme" && return
-            ;;
-        catppuccin-frappe)
-            local src="$config_dir/catppuccin-fzf-frappe.sh"
-            [[ -f "$src" ]] && cp "$src" "$fzf_rc" && echo -e "${GREEN}✓${NC} fzf theme set to: $theme" && return
-            ;;
-        catppuccin-macchiato)
-            local src="$config_dir/catppuccin-fzf-macchiato.sh"
-            [[ -f "$src" ]] && cp "$src" "$fzf_rc" && echo -e "${GREEN}✓${NC} fzf theme set to: $theme" && return
-            ;;
-    esac
-    
-    # Generate theme for other families
-    case "$theme" in
-        tokyo-night)
-            cat > "$fzf_rc" << 'EOF'
-export FZF_DEFAULT_OPTS=" \
---color=bg+:#292e42,bg:#1a1b26,spinner:#bb9af7,hl:#565f89 \
---color=fg:#c0caf5,header:#565f89,info:#7aa2f7,pointer:#bb9af7 \
---color=marker:#9ece6a,fg+:#c0caf5,prompt:#7aa2f7,hl+:#bb9af7"
-EOF
-            ;;
-        dracula)
-            cat > "$fzf_rc" << 'EOF'
-export FZF_DEFAULT_OPTS=" \
---color=bg+:#44475a,bg:#282a36,spinner:#ff79c6,hl:#6272a4 \
---color=fg:#f8f8f2,header:#6272a4,info:#8be9fd,pointer:#ff79c6 \
---color=marker:#50fa7b,fg+:#f8f8f2,prompt:#bd93f9,hl+:#ff79c6"
-EOF
-            ;;
-        nord)
-            cat > "$fzf_rc" << 'EOF'
-export FZF_DEFAULT_OPTS=" \
---color=bg+:#3B4252,bg:#2E3440,spinner:#81A1C1,hl:#616E88 \
---color=fg:#D8DEE9,header:#616E88,info:#81A1C1,pointer:#81A1C1 \
---color=marker:#81A1C1,fg+:#D8DEE9,prompt:#81A1C1,hl+:#81A1C1"
-EOF
-            ;;
-        gruvbox)
-            cat > "$fzf_rc" << 'EOF'
-export FZF_DEFAULT_OPTS=" \
---color=bg+:#3c3836,bg:#282828,spinner:#fb4934,hl:#928374 \
---color=fg:#ebdbb2,header:#928374,info:#8ec07c,pointer:#fb4934 \
---color=marker:#fb4934,fg+:#ebdbb2,prompt:#fb4934,hl+:#fb4934"
-EOF
-            ;;
-        onedark)
-            cat > "$fzf_rc" << 'EOF'
-export FZF_DEFAULT_OPTS=" \
---color=bg+:#3e4452,bg:#282c34,spinner:#c678dd,hl:#5c6370 \
---color=fg:#abb2bf,header:#5c6370,info:#61afef,pointer:#c678dd \
---color=marker:#98c379,fg+:#abb2bf,prompt:#61afef,hl+:#c678dd"
-EOF
-            ;;
-        solarized-dark)
-            cat > "$fzf_rc" << 'EOF'
-export FZF_DEFAULT_OPTS=" \
---color=bg+:#073642,bg:#002b36,spinner:#2aa198,hl:#586e75 \
---color=fg:#839496,header:#586e75,info:#268bd2,pointer:#2aa198 \
---color=marker:#859900,fg+:#93a1a1,prompt:#268bd2,hl+:#2aa198"
-EOF
-            ;;
-        solarized-light)
-            cat > "$fzf_rc" << 'EOF'
-export FZF_DEFAULT_OPTS=" \
---color=bg+:#eee8d5,bg:#fdf6e3,spinner:#2aa198,hl:#93a1a1 \
---color=fg:#657b83,header:#93a1a1,info:#268bd2,pointer:#2aa198 \
---color=marker:#859900,fg+:#586e75,prompt:#268bd2,hl+:#2aa198"
-EOF
-            ;;
-        *)
-            # Default to catppuccin-mocha
-            cat > "$fzf_rc" << 'EOF'
-export FZF_DEFAULT_OPTS=" \
---color=bg+:#313244,bg:#1E1E2E,spinner:#F5E0DC,hl:#F38BA8 \
---color=fg:#CDD6F4,header:#F38BA8,info:#CBA6F7,pointer:#F5E0DC \
---color=marker:#B4BEFE,fg+:#CDD6F4,prompt:#CBA6F7,hl+:#F38BA8 \
---color=selected-bg:#45475A \
---color=border:#6C7086,label:#CDD6F4"
-EOF
-            ;;
-    esac
-    
-    echo -e "${GREEN}✓${NC} fzf theme set to: $theme"
-    echo -e "${YELLOW}Note: Reload shell to apply (source fzf-theme.sh)${NC}"
+    # Use fzf-theme script if available
+    if [[ -x "${LABRAT_BIN_DIR}/fzf-theme" ]]; then
+        "${LABRAT_BIN_DIR}/fzf-theme" "$theme"
+    elif command -v fzf-theme &>/dev/null; then
+        fzf-theme "$theme"
+    else
+        echo -e "${RED}fzf-theme command not found${NC}"
+        return 1
+    fi
 }
 
 menu_lazygit_theme() {
