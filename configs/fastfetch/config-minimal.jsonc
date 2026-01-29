@@ -82,6 +82,45 @@
             "showLoop": false,
             "showMac": false,
             "compact": true
+        },
+        {
+            "type": "separator",
+            "string": "─"
+        },
+        {
+            "type": "command",
+            "key": "Python",
+            "keyColor": "yellow",
+            "shell": "/bin/sh",
+            "text": "python3 --version 2>/dev/null | awk '{print $2}' || echo 'not installed'"
+        },
+        {
+            "type": "command",
+            "key": "ROCm",
+            "keyColor": "red",
+            "shell": "/bin/sh",
+            "text": "cat /opt/rocm/.info/version 2>/dev/null || echo 'not installed'"
+        },
+        {
+            "type": "command",
+            "key": "amdgpu",
+            "keyColor": "red",
+            "shell": "/bin/sh",
+            "text": "modinfo amdgpu 2>/dev/null | grep ^version: | awk '{print $2}' || echo 'not loaded'"
+        },
+        {
+            "type": "command",
+            "key": "FirexS2",
+            "keyColor": "magenta",
+            "shell": "/bin/sh",
+            "text": "firexs2 --version 2>/dev/null | head -1 || echo 'not installed'"
+        },
+        {
+            "type": "command",
+            "key": "ORC3",
+            "keyColor": "magenta",
+            "shell": "/bin/sh",
+            "text": "orc3 --version 2>/dev/null | head -1 || echo 'not installed'"
         }
     ]
 }
