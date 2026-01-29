@@ -57,7 +57,8 @@ deploy_atuin_config() {
     ensure_dir "$ATUIN_CONFIG_DIR"
     ensure_dir "$ATUIN_THEME_DIR"
     
-    local labrat_config_dir="${LABRAT_CONFIG_DIR}/atuin"
+    # Source configs directory (LABRAT_CONFIGS_DIR is set by install.sh)
+    local labrat_config_dir="${LABRAT_CONFIGS_DIR}/atuin"
     
     # Deploy main config file (don't overwrite if exists)
     if [[ -f "${labrat_config_dir}/config.toml" ]]; then
