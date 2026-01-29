@@ -1,0 +1,143 @@
+# ============================================================================
+# LabRat Atuin Configuration
+# Magical shell history - sync, search, and backup
+# https://docs.atuin.sh/cli/configuration/config/
+# ============================================================================
+
+# ==========================
+# Database & Storage
+# ==========================
+
+# db_path = "~/.local/share/atuin/history.db"
+# key_path = "~/.local/share/atuin/key"
+# session_path = "~/.local/share/atuin/session"
+
+# ==========================
+# Sync Settings
+# ==========================
+
+# Enable automatic sync when logged in
+auto_sync = true
+
+# How often to sync (human-readable: 10s, 20m, 1h)
+# Set to "0" to sync after every command
+sync_frequency = "1h"
+
+# Sync server address (default is Atuin's hosted service)
+# sync_address = "https://api.atuin.sh"
+
+# Check for Atuin updates
+update_check = true
+
+# ==========================
+# Search Settings
+# ==========================
+
+# Search mode: prefix, fulltext, fuzzy, skim
+# - prefix: searches for "query*"
+# - fulltext: searches for "*query*"
+# - fuzzy: fzf-style fuzzy matching
+# - skim: skim search syntax
+search_mode = "fuzzy"
+
+# Filter mode: global, host, session, directory, workspace
+# - global: all history from all hosts
+# - host: history from this host only
+# - session: history from current session
+# - directory: history from current directory
+# - workspace: history from current git repository
+filter_mode = "global"
+
+# Filter mode for up-arrow (if enabled)
+# Useful to have different behavior for up vs ctrl-r
+filter_mode_shell_up_key_binding = "session"
+
+# Search mode for up-arrow (if enabled)
+search_mode_shell_up_key_binding = "fuzzy"
+
+# Enable workspace filtering (auto-activates in git repos)
+workspaces = true
+
+# ==========================
+# UI Settings
+# ==========================
+
+# Style: auto, full, compact
+# - compact: minimal height
+# - full: more information displayed
+# - auto: switches based on terminal height
+style = "compact"
+
+# Invert UI - put search bar at top
+invert = false
+
+# Maximum lines for Atuin interface (0 = full screen)
+inline_height = 40
+
+# Show preview of selected command
+show_preview = true
+
+# Maximum preview height
+max_preview_height = 4
+
+# Enter key behavior
+# true = execute selected command
+# false = edit before executing (like Tab)
+enter_accept = true
+
+# Exit when scrolling past first/last entry
+exit_mode = "return-query"
+
+# ==========================
+# Key Settings
+# ==========================
+
+[keys]
+# Exit TUI when scrolling past first/last entry
+scroll_exits = true
+
+# Exit when cursor moves past line boundaries
+exit_past_line_start = true
+exit_past_line_end = true
+
+# ==========================
+# Preview Settings
+# ==========================
+
+[preview]
+# Preview strategy: auto, static, fixed
+# - auto: based on selected command length
+# - static: based on longest command in results
+# - fixed: use max_preview_height
+strategy = "auto"
+
+# ==========================
+# UI Columns
+# ==========================
+
+[ui]
+# Columns to display (left to right)
+# Available: duration, time, datetime, directory, host, user, exit, command
+columns = ["duration", "time", "command"]
+
+# ==========================
+# Theme
+# ==========================
+
+[theme]
+# Theme name - must be a built-in or found in ~/.config/atuin/themes/
+# Built-in: default, autumn, marine, (none)
+# LabRat themes: catppuccin-mocha, catppuccin-latte, gruvbox-dark, etc.
+name = "catppuccin-mocha"
+
+# Debug theme loading issues
+debug = false
+
+# ==========================
+# Daemon (optional background sync)
+# ==========================
+
+# [daemon]
+# enabled = false
+# sync_frequency = 300
+# socket_path = "~/.local/share/atuin/atuin.sock"

@@ -400,6 +400,7 @@ menu_themes() {
         draw_box_line "${BOLD}[5]${NC} lazygit               Git TUI" "$width" "$PURPLE"
         draw_box_line "${BOLD}[6]${NC} starship              Shell prompt" "$width" "$PURPLE"
         draw_box_line "${BOLD}[7]${NC} tmux                  Terminal multiplexer" "$width" "$PURPLE"
+        draw_box_line "${BOLD}[8]${NC} atuin                 Shell history" "$width" "$PURPLE"
         draw_box_line "" "$width" "$PURPLE"
         draw_box_line "${BOLD}[b]${NC} Back" "$width" "$PURPLE"
         draw_box_bottom "$width" "$PURPLE"
@@ -416,6 +417,7 @@ menu_themes() {
             5) menu_lazygit_theme ;;
             6) select_starship_preset ;;
             7) menu_tmux_theme ;;
+            8) menu_atuin_theme ;;
             b|B|q|Q) return ;;
             *)
                 echo -e "${YELLOW}Invalid selection${NC}"
@@ -1038,6 +1040,103 @@ apply_tmux_theme() {
 }
 
 # ============================================================================
+# Atuin Theme Menu
+# ============================================================================
+
+menu_atuin_theme() {
+    local themes=(
+        "catppuccin-mocha"
+        "catppuccin-latte"
+        "catppuccin-frappe"
+        "catppuccin-macchiato"
+        "gruvbox-dark"
+        "gruvbox-light"
+        "default"
+        "autumn"
+        "marine"
+    )
+    
+    local current_theme="default"
+    local atuin_config="$HOME/.config/atuin/config.toml"
+    if [[ -f "$atuin_config" ]]; then
+        current_theme=$(grep -E '^name\s*=' "$atuin_config" | sed 's/.*=\s*"\?\([^"]*\)"\?.*/\1/' | tail -1 || echo "default")
+    fi
+    
+    show_menu_header "Atuin Theme"
+    
+    if has_fzf; then
+        local selected
+        selected=$(printf '%s\n' "${themes[@]}" | fzf \
+            --header="Select Atuin Theme (current: $current_theme)" \
+            --height=50% \
+            --layout=reverse \
+            --border=rounded \
+            --prompt="❯ " \
+            --pointer="▸" \
+            --color="bg+:#313244,bg:#1e1e2e,spinner:#f5e0dc,hl:#f38ba8" \
+            --color="fg:#cdd6f4,header:#f38ba8,info:#cba6f7,pointer:#f5e0dc")
+        
+        if [[ -n "$selected" ]]; then
+            apply_atuin_theme "$selected"
+        fi
+    else
+        echo -e "${BOLD}Current:${NC} $current_theme"
+        echo ""
+        echo -e "${BOLD}Available Themes:${NC}"
+        
+        local i=1
+        for theme in "${themes[@]}"; do
+            local marker=""
+            [[ "$theme" == "$current_theme" ]] && marker=" ${GREEN}(current)${NC}"
+            printf "  [%2d] %s%b\n" "$i" "$theme" "$marker"
+            ((i++))
+        done
+        echo ""
+        
+        local choice
+        read -rp "Select theme [1-${#themes[@]}], [b] Back: " choice
+        
+        case "$choice" in
+            b|B) return ;;
+            *)
+                if [[ "$choice" =~ ^[0-9]+$ ]] && ((choice >= 1 && choice <= ${#themes[@]})); then
+                    apply_atuin_theme "${themes[$((choice-1))]}"
+                fi
+                ;;
+        esac
+    fi
+    
+    wait_for_key
+}
+
+apply_atuin_theme() {
+    local theme="$1"
+    
+    # Use atuin-theme script if available
+    if [[ -x "${LABRAT_BIN_DIR}/atuin-theme" ]]; then
+        "${LABRAT_BIN_DIR}/atuin-theme" "$theme"
+    elif command -v atuin-theme &>/dev/null; then
+        atuin-theme "$theme"
+    else
+        # Fallback: directly update config
+        local atuin_config="$HOME/.config/atuin/config.toml"
+        mkdir -p "$(dirname "$atuin_config")"
+        
+        if [[ -f "$atuin_config" ]]; then
+            if grep -q '^\[theme\]' "$atuin_config"; then
+                sed -i '/^\[theme\]/,/^\[/ { s/^name\s*=.*/name = "'"$theme"'"/ }' "$atuin_config"
+            else
+                echo -e "\n[theme]\nname = \"$theme\"" >> "$atuin_config"
+            fi
+        else
+            echo -e "[theme]\nname = \"$theme\"" > "$atuin_config"
+        fi
+        
+        echo -e "${GREEN}✓${NC} Atuin theme set to: $theme"
+    fi
+}
+
+# ============================================================================
 # History Menu (atuin)
 # ============================================================================
 
@@ -1052,15 +1151,30 @@ menu_history() {
             is_enabled="${DIM}○ disabled${NC}"
         fi
         
-        local width=55
-        draw_box_top "Shell History Manager" "$width" "$YELLOW"
+        # Get current search mode and filter
+        local current_search="fuzzy"
+        local current_filter="global"
+        local atuin_config="$HOME/.config/atuin/config.toml"
+        if [[ -f "$atuin_config" ]]; then
+            current_search=$(grep -E '^search_mode\s*=' "$atuin_config" | sed 's/.*=\s*"\?\([^"]*\)"\?.*/\1/' | tail -1 || echo "fuzzy")
+            current_filter=$(grep -E '^filter_mode\s*=' "$atuin_config" | sed 's/.*=\s*"\?\([^"]*\)"\?.*/\1/' | tail -1 || echo "global")
+        fi
+        
+        local width=62
+        draw_box_top "Shell History Manager (atuin)" "$width" "$YELLOW"
         draw_box_line "" "$width" "$YELLOW"
-        draw_box_line "atuin status: $is_enabled" "$width" "$YELLOW"
+        draw_box_line "Status: $is_enabled" "$width" "$YELLOW"
+        draw_box_line "Search: ${CYAN}$current_search${NC}    Filter: ${CYAN}$current_filter${NC}" "$width" "$YELLOW"
+        draw_box_line "" "$width" "$YELLOW"
+        draw_box_separator "$width" "$YELLOW"
         draw_box_line "" "$width" "$YELLOW"
         draw_box_line "${BOLD}[1]${NC} Toggle atuin          Enable/disable" "$width" "$YELLOW"
-        draw_box_line "${BOLD}[2]${NC} Import history        Import from shell history" "$width" "$YELLOW"
-        draw_box_line "${BOLD}[3]${NC} Show stats            Display usage statistics" "$width" "$YELLOW"
-        draw_box_line "${BOLD}[4]${NC} Search history        Interactive search" "$width" "$YELLOW"
+        draw_box_line "${BOLD}[2]${NC} Search Mode           fuzzy, prefix, fulltext, skim" "$width" "$YELLOW"
+        draw_box_line "${BOLD}[3]${NC} Filter Mode           global, host, session, directory" "$width" "$YELLOW"
+        draw_box_line "${BOLD}[4]${NC} Import history        Import from shell history" "$width" "$YELLOW"
+        draw_box_line "${BOLD}[5]${NC} Show stats            Display usage statistics" "$width" "$YELLOW"
+        draw_box_line "${BOLD}[6]${NC} Search history        Interactive search (Ctrl+R)" "$width" "$YELLOW"
+        draw_box_line "${BOLD}[7]${NC} Edit config           Open config.toml" "$width" "$YELLOW"
         draw_box_line "" "$width" "$YELLOW"
         draw_box_line "${BOLD}[b]${NC} Back" "$width" "$YELLOW"
         draw_box_bottom "$width" "$YELLOW"
@@ -1075,6 +1189,12 @@ menu_history() {
                 NEEDS_SHELL_RELOAD=true
                 ;;
             2)
+                menu_atuin_search_mode
+                ;;
+            3)
+                menu_atuin_filter_mode
+                ;;
+            4)
                 if command -v atuin &>/dev/null; then
                     echo "Importing history..."
                     atuin import auto
@@ -1084,7 +1204,7 @@ menu_history() {
                     sleep 1
                 fi
                 ;;
-            3)
+            5)
                 if command -v atuin &>/dev/null; then
                     atuin stats
                     wait_for_key
@@ -1093,7 +1213,7 @@ menu_history() {
                     sleep 1
                 fi
                 ;;
-            4)
+            6)
                 if command -v atuin &>/dev/null; then
                     atuin search -i
                 else
@@ -1101,9 +1221,107 @@ menu_history() {
                     sleep 1
                 fi
                 ;;
+            7)
+                local config="$HOME/.config/atuin/config.toml"
+                if [[ -f "$config" ]]; then
+                    "${EDITOR:-nano}" "$config"
+                else
+                    echo -e "${YELLOW}Config file not found. Creating default...${NC}"
+                    mkdir -p "$(dirname "$config")"
+                    local labrat_config="${LABRAT_ROOT}/configs/atuin/config.toml"
+                    if [[ -f "$labrat_config" ]]; then
+                        cp "$labrat_config" "$config"
+                    fi
+                    "${EDITOR:-nano}" "$config"
+                fi
+                ;;
             b|B|q|Q) return ;;
         esac
     done
+}
+
+# Atuin search mode submenu
+menu_atuin_search_mode() {
+    local modes=("fuzzy" "prefix" "fulltext" "skim")
+    local current="fuzzy"
+    local atuin_config="$HOME/.config/atuin/config.toml"
+    if [[ -f "$atuin_config" ]]; then
+        current=$(grep -E '^search_mode\s*=' "$atuin_config" | sed 's/.*=\s*"\?\([^"]*\)"\?.*/\1/' | tail -1 || echo "fuzzy")
+    fi
+    
+    echo ""
+    echo -e "${BOLD}Atuin Search Mode${NC} (current: $current)"
+    echo ""
+    echo "  [1] fuzzy     - fzf-style fuzzy matching"
+    echo "  [2] prefix    - match from beginning"
+    echo "  [3] fulltext  - match anywhere"
+    echo "  [4] skim      - skim search syntax"
+    echo ""
+    
+    local choice
+    read -rp "Select mode [1-4], [b] Back: " choice
+    
+    case "$choice" in
+        [1-4])
+            local selected="${modes[$((choice-1))]}"
+            set_atuin_config_value "search_mode" "$selected"
+            echo -e "${GREEN}✓${NC} Search mode set to: $selected"
+            sleep 1
+            ;;
+    esac
+}
+
+# Atuin filter mode submenu
+menu_atuin_filter_mode() {
+    local modes=("global" "host" "session" "directory" "workspace")
+    local current="global"
+    local atuin_config="$HOME/.config/atuin/config.toml"
+    if [[ -f "$atuin_config" ]]; then
+        current=$(grep -E '^filter_mode\s*=' "$atuin_config" | sed 's/.*=\s*"\?\([^"]*\)"\?.*/\1/' | tail -1 || echo "global")
+    fi
+    
+    echo ""
+    echo -e "${BOLD}Atuin Filter Mode${NC} (current: $current)"
+    echo ""
+    echo "  [1] global     - all history from all hosts"
+    echo "  [2] host       - history from this host only"
+    echo "  [3] session    - history from current session"
+    echo "  [4] directory  - history from current directory"
+    echo "  [5] workspace  - history from current git repo"
+    echo ""
+    
+    local choice
+    read -rp "Select mode [1-5], [b] Back: " choice
+    
+    case "$choice" in
+        [1-5])
+            local selected="${modes[$((choice-1))]}"
+            set_atuin_config_value "filter_mode" "$selected"
+            echo -e "${GREEN}✓${NC} Filter mode set to: $selected"
+            sleep 1
+            ;;
+    esac
+}
+
+# Helper to set atuin config value
+set_atuin_config_value() {
+    local key="$1"
+    local value="$2"
+    local atuin_config="$HOME/.config/atuin/config.toml"
+    
+    mkdir -p "$(dirname "$atuin_config")"
+    
+    if [[ -f "$atuin_config" ]]; then
+        if grep -q "^${key}\s*=" "$atuin_config"; then
+            sed -i "s/^${key}\s*=.*/${key} = \"${value}\"/" "$atuin_config"
+        else
+            # Add to end (before any section)
+            sed -i "1i ${key} = \"${value}\"" "$atuin_config"
+        fi
+    else
+        # Create new config
+        echo "${key} = \"${value}\"" > "$atuin_config"
+    fi
 }
 
 # ============================================================================

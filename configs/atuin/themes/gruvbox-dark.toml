@@ -1,0 +1,37 @@
+# ============================================================================
+# Gruvbox Dark Theme for Atuin
+# https://github.com/morhetz/gruvbox
+# ============================================================================
+
+[theme]
+name = "gruvbox-dark"
+
+[colors]
+# Gruvbox Dark Palette
+# bg: #282828 | bg1: #3c3836 | bg2: #504945 | bg3: #665c54 | bg4: #7c6f64
+# fg: #ebdbb2 | fg1: #ebdbb2 | fg2: #d5c4a1 | fg3: #bdae93 | fg4: #a89984
+# red: #fb4934 | green: #b8bb26 | yellow: #fabd2f | blue: #83a598
+# purple: #d3869b | aqua: #8ec07c | orange: #fe8019 | gray: #928374
+
+# Base foreground color
+Base = "#ebdbb2"
+
+# Alert levels
+AlertInfo = "#b8bb26"
+AlertWarn = "#fabd2f"
+AlertError = "#fb4934"
+
+# Supporting text (less prominent)
+Annotation = "#a89984"
+
+# Help/context text
+Guidance = "#83a598"
+
+# Important information
+Important = "#fe8019"
+
+# Section titles
+Title = "#d3869b"
+
+# Muted/grey foreground
+Muted = "#928374"

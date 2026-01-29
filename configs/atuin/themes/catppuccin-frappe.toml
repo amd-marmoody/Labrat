@@ -1,0 +1,41 @@
+# ============================================================================
+# Catppuccin Frappé Theme for Atuin
+# https://github.com/catppuccin/catppuccin
+# ============================================================================
+
+[theme]
+name = "catppuccin-frappe"
+
+[colors]
+# Rosewater: #f2d5cf | Flamingo: #eebebe | Pink: #f4b8e4
+# Mauve: #ca9ee6 | Red: #e78284 | Maroon: #ea999c
+# Peach: #ef9f76 | Yellow: #e5c890 | Green: #a6d189
+# Teal: #81c8be | Sky: #99d1db | Sapphire: #85c1dc
+# Blue: #8caaee | Lavender: #babbf1 | Text: #c6d0f5
+# Subtext1: #b5bfe2 | Subtext0: #a5adce | Overlay2: #949cbb
+# Overlay1: #838ba7 | Overlay0: #737994 | Surface2: #626880
+# Surface1: #51576d | Surface0: #414559 | Base: #303446
+# Mantle: #292c3c | Crust: #232634
+
+# Base foreground color
+Base = "#c6d0f5"
+
+# Alert levels
+AlertInfo = "#a6d189"
+AlertWarn = "#e5c890"
+AlertError = "#e78284"
+
+# Supporting text (less prominent)
+Annotation = "#a5adce"
+
+# Help/context text
+Guidance = "#8caaee"
+
+# Important information
+Important = "#f4b8e4"
+
+# Section titles
+Title = "#ca9ee6"
+
+# Muted/grey foreground
+Muted = "#737994"

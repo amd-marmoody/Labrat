@@ -6,6 +6,8 @@
 #
 
 ATUIN_GITHUB_REPO="atuinsh/atuin"
+ATUIN_CONFIG_DIR="${HOME}/.config/atuin"
+ATUIN_THEME_DIR="${HOME}/.config/atuin/themes"
 
 install_atuin() {
     log_step "Installing atuin..."
@@ -29,6 +31,9 @@ install_atuin() {
     
     local version=$(atuin --version 2>/dev/null | grep -oP '[\d.]+' | head -1)
     
+    # Deploy configuration and themes
+    deploy_atuin_config
+    
     # Setup shell integration using new API
     setup_atuin_integration
     
@@ -36,8 +41,44 @@ install_atuin() {
     
     log_success "atuin installed successfully!"
     log_info "Run ${BOLD}atuin import auto${NC} to import existing history"
-    log_info "Press ${BOLD}Ctrl+R${NC} for interactive search"
+    log_info "Press ${BOLD}Ctrl+R${NC} for interactive search (up-arrow disabled by default)"
     log_info "Helper functions: ${BOLD}atuin-enable${NC}, ${BOLD}atuin-disable${NC}"
+    log_info "Change theme with: ${BOLD}atuin-theme${NC}"
+}
+
+# ============================================================================
+# Configuration Deployment
+# ============================================================================
+
+deploy_atuin_config() {
+    log_step "Deploying atuin configuration..."
+    
+    # Create config directories
+    ensure_dir "$ATUIN_CONFIG_DIR"
+    ensure_dir "$ATUIN_THEME_DIR"
+    
+    local labrat_config_dir="${LABRAT_CONFIG_DIR}/atuin"
+    
+    # Deploy main config file (don't overwrite if exists)
+    if [[ -f "${labrat_config_dir}/config.toml" ]]; then
+        if [[ ! -f "${ATUIN_CONFIG_DIR}/config.toml" ]]; then
+            cp "${labrat_config_dir}/config.toml" "${ATUIN_CONFIG_DIR}/config.toml"
+            log_success "Deployed atuin config.toml"
+        else
+            log_info "Atuin config already exists, skipping (use atuin-theme to change theme)"
+        fi
+    fi
+    
+    # Deploy all themes
+    if [[ -d "${labrat_config_dir}/themes" ]]; then
+        for theme_file in "${labrat_config_dir}/themes"/*.toml; do
+            if [[ -f "$theme_file" ]]; then
+                local theme_name=$(basename "$theme_file")
+                cp "$theme_file" "${ATUIN_THEME_DIR}/${theme_name}"
+            fi
+        done
+        log_success "Deployed atuin themes to ${ATUIN_THEME_DIR}"
+    fi
 }
 
 install_atuin_from_github() {
@@ -92,11 +133,17 @@ atuin-disable() {
     echo "atuin disabled. Using default Ctrl+R history search."
 }
 
-# Re-enable atuin
+# Re-enable atuin (with optional up-arrow)
 atuin-enable() {
+    local with_up_arrow="${1:-}"
     if command -v atuin &>/dev/null; then
-        eval "$(atuin init bash)"
-        echo "atuin enabled!"
+        if [[ "$with_up_arrow" == "--with-up-arrow" ]] || [[ "$with_up_arrow" == "-u" ]]; then
+            eval "$(atuin init bash)"
+            echo "atuin enabled with up-arrow binding!"
+        else
+            eval "$(atuin init bash --disable-up-arrow)"
+            echo "atuin enabled! (use atuin-enable --with-up-arrow to enable up-arrow)"
+        fi
     else
         echo "Error: atuin not found"
         return 1
@@ -126,11 +173,17 @@ atuin-disable() {
     echo "atuin disabled. Using default Ctrl+R history search."
 }
 
-# Re-enable atuin
+# Re-enable atuin (with optional up-arrow)
 atuin-enable() {
+    local with_up_arrow="${1:-}"
     if (( $+commands[atuin] )); then
-        eval "$(atuin init zsh)"
-        echo "atuin enabled!"
+        if [[ "$with_up_arrow" == "--with-up-arrow" ]] || [[ "$with_up_arrow" == "-u" ]]; then
+            eval "$(atuin init zsh)"
+            echo "atuin enabled with up-arrow binding!"
+        else
+            eval "$(atuin init zsh --disable-up-arrow)"
+            echo "atuin enabled! (use atuin-enable --with-up-arrow to enable up-arrow)"
+        fi
     else
         echo "Error: atuin not found"
         return 1
@@ -160,11 +213,17 @@ function atuin-disable
     echo "atuin disabled."
 end
 
-# Re-enable atuin
+# Re-enable atuin (with optional up-arrow)
 function atuin-enable
+    set with_up_arrow $argv[1]
     if command -v atuin &>/dev/null
-        atuin init fish | source
-        echo "atuin enabled!"
+        if test "$with_up_arrow" = "--with-up-arrow" -o "$with_up_arrow" = "-u"
+            atuin init fish | source
+            echo "atuin enabled with up-arrow binding!"
+        else
+            atuin init fish --disable-up-arrow | source
+            echo "atuin enabled! (use atuin-enable --with-up-arrow to enable up-arrow)"
+        end
     else
         echo "Error: atuin not found"
         return 1
@@ -179,10 +238,11 @@ function atuin-stats
 end'
 
     # Register shell integration using new modular API
+    # NOTE: --disable-up-arrow is used by default to avoid conflicts with shell defaults
     register_shell_module "atuin" \
-        --init-bash 'eval "$(atuin init bash)"' \
-        --init-zsh 'eval "$(atuin init zsh)"' \
-        --init-fish 'atuin init fish | source' \
+        --init-bash 'eval "$(atuin init bash --disable-up-arrow)"' \
+        --init-zsh 'eval "$(atuin init zsh --disable-up-arrow)"' \
+        --init-fish 'atuin init fish --disable-up-arrow | source' \
         --functions-bash "$bash_functions" \
         --functions-zsh "$zsh_functions" \
         --functions-fish "$fish_functions" \
