@@ -30,7 +30,7 @@ install_fastfetch() {
                 if [[ "$OS" == "ubuntu" ]]; then
                     # In non-interactive mode (--yes flag), use GitHub directly
                     # PPA method requires user confirmation and may not work in all cases
-                    if [[ "${SKIP_CONFIRM:-false}" == "true" ]] || [[ ! -t 0 ]]; then
+                    if [[ "${SKIP_CONFIRMATION:-false}" == "true" ]] || [[ ! -t 0 ]]; then
                         log_info "Non-interactive mode: using GitHub release"
                         use_github=true
                     elif confirm "Add fastfetch PPA for latest version?" "y"; then
@@ -106,7 +106,7 @@ install_fastfetch_from_github() {
             ;;
     esac
     
-    # Prefer deb/rpm packages, fall back to binary
+    # Prefer deb/rpm packages, fall back to binary tarball
     case "$OS_FAMILY" in
         debian)
             pkg_type="deb"
@@ -114,8 +114,24 @@ install_fastfetch_from_github() {
             local temp_file="${LABRAT_CACHE_DIR}/fastfetch.deb"
             
             if download_file "$download_url" "$temp_file" "Downloading fastfetch"; then
-                sudo dpkg -i "$temp_file" || sudo apt-get install -f -y
-                rm -f "$temp_file"
+                # Try dpkg installation (may require sudo)
+                if sudo dpkg -i "$temp_file" 2>/dev/null; then
+                    rm -f "$temp_file"
+                elif dpkg -i "$temp_file" 2>/dev/null; then
+                    rm -f "$temp_file"
+                else
+                    # Fallback: extract deb manually to user directory
+                    log_info "dpkg failed, extracting manually..."
+                    local extract_dir="${LABRAT_CACHE_DIR}/fastfetch-deb"
+                    mkdir -p "$extract_dir"
+                    dpkg-deb -x "$temp_file" "$extract_dir"
+                    if [[ -f "$extract_dir/usr/bin/fastfetch" ]]; then
+                        cp "$extract_dir/usr/bin/fastfetch" "$LABRAT_BIN_DIR/"
+                        chmod +x "$LABRAT_BIN_DIR/fastfetch"
+                        log_success "Extracted fastfetch to $LABRAT_BIN_DIR"
+                    fi
+                    rm -rf "$temp_file" "$extract_dir"
+                fi
             else
                 log_error "Failed to download fastfetch"
                 return 1
