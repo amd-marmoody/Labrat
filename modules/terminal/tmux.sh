@@ -5,8 +5,10 @@
 #
 
 # Module metadata
-TMUX_VERSION_MIN="3.0"
+TMUX_VERSION_MIN="3.3"
+TMUX_VERSION_LATEST="3.5a"
 TMUX_TPM_REPO="https://github.com/tmux-plugins/tpm"
+TMUX_RELEASES_URL="https://github.com/tmux/tmux/releases/download"
 
 # Available themes with their TPM plugin repos
 declare -A TMUX_THEME_PLUGINS=(
@@ -166,32 +168,173 @@ TMUX_THEMES_REQUIRE_NERDFONTS=(
 # Installation
 # ============================================================================
 
+# Install tmux build dependencies
+install_tmux_build_deps() {
+    log_step "Installing tmux build dependencies..."
+    
+    case "$OS_FAMILY" in
+        debian)
+            pkg_install libevent-dev libncurses-dev build-essential bison pkg-config
+            ;;
+        rhel)
+            pkg_install libevent-devel ncurses-devel make gcc bison
+            ;;
+        arch)
+            pkg_install base-devel libevent ncurses
+            ;;
+        alpine)
+            pkg_install libevent-dev ncurses-dev build-base bison
+            ;;
+        *)
+            log_warn "Unknown OS family, attempting common package names"
+            pkg_install libevent-dev ncurses-dev build-essential bison
+            ;;
+    esac
+}
+
+# Build tmux from source
+build_tmux_from_source() {
+    local version="${1:-$TMUX_VERSION_LATEST}"
+    local cache_dir="${LABRAT_CACHE_DIR:-$HOME/.cache/labrat}/tmux"
+    local tarball="${cache_dir}/tmux-${version}.tar.gz"
+    local src_dir="${cache_dir}/tmux-${version}"
+    local install_prefix="/usr/local"
+    
+    log_step "Building tmux ${version} from source..."
+    
+    # Install build dependencies
+    install_tmux_build_deps
+    
+    # Create cache directory
+    mkdir -p "$cache_dir"
+    
+    # Download source tarball
+    local download_url="${TMUX_RELEASES_URL}/${version}/tmux-${version}.tar.gz"
+    log_info "Downloading tmux ${version}..."
+    
+    if ! curl -fsSL -o "$tarball" "$download_url" 2>/dev/null; then
+        log_error "Failed to download tmux ${version} from ${download_url}"
+        return 1
+    fi
+    
+    # Extract tarball
+    log_info "Extracting source..."
+    rm -rf "$src_dir"
+    tar xzf "$tarball" -C "$cache_dir"
+    
+    if [[ ! -d "$src_dir" ]]; then
+        log_error "Failed to extract tmux source"
+        return 1
+    fi
+    
+    # Build and install
+    log_info "Configuring..."
+    (
+        cd "$src_dir" || exit 1
+        ./configure --prefix="$install_prefix" >/dev/null 2>&1 || {
+            log_error "Configure failed"
+            exit 1
+        }
+        
+        log_info "Compiling (this may take a minute)..."
+        make -j"$(nproc)" >/dev/null 2>&1 || {
+            log_error "Make failed"
+            exit 1
+        }
+        
+        log_info "Installing to ${install_prefix}..."
+        sudo make install >/dev/null 2>&1 || {
+            log_error "Make install failed (may need sudo)"
+            exit 1
+        }
+    ) || return 1
+    
+    # Verify installation
+    local installed_path
+    installed_path=$(command -v tmux)
+    local installed_version
+    installed_version=$(tmux -V 2>/dev/null | grep -oP '[\d.]+[a-z]?' | head -1)
+    
+    if [[ "$installed_version" == "$version" ]] || [[ "$installed_version" == "${version%a}" ]]; then
+        log_success "tmux ${installed_version} installed to ${installed_path}"
+    else
+        log_warn "Version mismatch: expected ${version}, got ${installed_version}"
+    fi
+    
+    # Cleanup
+    rm -rf "$src_dir" "$tarball"
+    
+    return 0
+}
+
+# Check if installed tmux version meets minimum
+check_tmux_version() {
+    local min_version="${1:-$TMUX_VERSION_MIN}"
+    
+    if ! command_exists tmux; then
+        return 1
+    fi
+    
+    local current_version
+    current_version=$(tmux -V 2>/dev/null | grep -oP '[\d.]+' | head -1)
+    
+    # Simple version comparison (works for major.minor format)
+    local current_major current_minor min_major min_minor
+    current_major="${current_version%%.*}"
+    current_minor="${current_version#*.}"
+    current_minor="${current_minor%%.*}"
+    min_major="${min_version%%.*}"
+    min_minor="${min_version#*.}"
+    min_minor="${min_minor%%.*}"
+    
+    if (( current_major > min_major )); then
+        return 0
+    elif (( current_major == min_major && current_minor >= min_minor )); then
+        return 0
+    else
+        return 1
+    fi
+}
+
 install_tmux() {
     log_step "Installing tmux..."
     
-    # Install tmux via package manager
-    if ! command_exists tmux; then
-        case "$OS_FAMILY" in
-            debian)
-                pkg_install tmux
-                ;;
-            rhel)
-                if [[ "$OS" == "centos" ]] || [[ "$OS" == "rhel" ]]; then
-                    pkg_install_if_missing epel-release
-                fi
-                pkg_install tmux
-                ;;
-            *)
-                pkg_install tmux
-                ;;
-        esac
+    local needs_build=false
+    local current_version=""
+    
+    # Check if tmux is installed and meets version requirement
+    if command_exists tmux; then
+        current_version=$(tmux -V 2>/dev/null | grep -oP '[\d.]+[a-z]?' | head -1)
+        log_info "Found tmux ${current_version}"
+        
+        if check_tmux_version "$TMUX_VERSION_MIN"; then
+            log_info "tmux ${current_version} meets minimum requirement (${TMUX_VERSION_MIN}+)"
+        else
+            log_warn "tmux ${current_version} is below minimum ${TMUX_VERSION_MIN}"
+            log_info "Upgrading to tmux ${TMUX_VERSION_LATEST} for latest features (fzf --tmux, etc.)"
+            needs_build=true
+        fi
     else
-        log_info "tmux already installed"
+        log_info "tmux not found, building from source..."
+        needs_build=true
+    fi
+    
+    # Build from source if needed
+    if [[ "$needs_build" == "true" ]]; then
+        if ! build_tmux_from_source "$TMUX_VERSION_LATEST"; then
+            log_error "Failed to build tmux from source"
+            log_info "Falling back to package manager..."
+            case "$OS_FAMILY" in
+                debian) pkg_install tmux ;;
+                rhel) pkg_install tmux ;;
+                *) pkg_install tmux ;;
+            esac
+        fi
     fi
     
     # Get installed version
     local installed_version
-    installed_version=$(tmux -V | grep -oP '[\d.]+' | head -1)
+    installed_version=$(tmux -V 2>/dev/null | grep -oP '[\d.]+[a-z]?' | head -1)
     log_info "tmux version: $installed_version"
     
     # Install TPM (Tmux Plugin Manager)
