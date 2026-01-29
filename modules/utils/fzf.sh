@@ -110,7 +110,8 @@ fzf-cd-widget() {
 }
 bind -x '"\ec": fzf-cd-widget'
 
-# Ctrl+H - fzf history search (avoids conflict with atuin's Ctrl+R)
+# Alt+R - fzf history search (avoids conflict with atuin's Ctrl+R)
+# Note: We use Alt+R instead of Ctrl+H because Ctrl+H is often backspace
 __fzf_history__() {
   local output opts
   opts="--height ${FZF_TMUX_HEIGHT:-40%} --bind=ctrl-z:ignore ${FZF_DEFAULT_OPTS-} -n2..,.. --scheme=history --bind=ctrl-r:toggle-sort ${FZF_CTRL_R_OPTS-} +m --read0"
@@ -126,7 +127,7 @@ __fzf_history__() {
     READLINE_POINT=0x7fffffff
   fi
 }
-bind -x '"\C-h": __fzf_history__'
+bind -x '"\er": __fzf_history__'
 
 # Default options
 export FZF_DEFAULT_OPTS="
@@ -171,7 +172,7 @@ fi
 # Auto-completion
 [[ $- == *i* ]] && source "$HOME/.fzf/shell/completion.zsh" 2> /dev/null
 
-# Key bindings (Ctrl+T for files, Alt+C for directories, Ctrl+H for history)
+# Key bindings (Ctrl+T for files, Alt+C for directories, Alt+R for history)
 # Note: We don't source the default key-bindings.zsh because it uses Ctrl+R
 # which conflicts with atuin. Instead we define custom bindings.
 
@@ -210,7 +211,8 @@ fzf-cd-widget() {
 zle -N fzf-cd-widget
 bindkey '\ec' fzf-cd-widget
 
-# Ctrl+H - fzf history search (avoids conflict with atuin's Ctrl+R)
+# Alt+R - fzf history search (avoids conflict with atuin's Ctrl+R)
+# Note: We use Alt+R instead of Ctrl+H because Ctrl+H is often backspace
 fzf-history-widget() {
   local selected num
   setopt localoptions noglobsubst noposixbuiltins pipefail no_aliases 2> /dev/null
@@ -229,7 +231,7 @@ fzf-history-widget() {
   return $ret
 }
 zle -N fzf-history-widget
-bindkey '^H' fzf-history-widget
+bindkey '\er' fzf-history-widget
 
 # Default options
 export FZF_DEFAULT_OPTS="

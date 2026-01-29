@@ -62,9 +62,9 @@ get_active_keybinds() {
         keybinds+="Ctrl+R (atuin) "
     fi
     
-    # Check fzf (Ctrl+H for history, Ctrl+T for files)
+    # Check fzf (Alt+R for history, Ctrl+T for files)
     if command -v fzf &>/dev/null && is_module_enabled "fzf"; then
-        keybinds+="• Ctrl+H (fzf history) • Ctrl+T (files) "
+        keybinds+="• Alt+R (fzf) • Ctrl+T (files) "
     fi
     
     # Check zoxide
