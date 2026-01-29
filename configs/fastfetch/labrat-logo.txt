@@ -7,16 +7,16 @@ $1             `    \\$2OOOOOOOOOOOOOOO$1\//        /
 $1               \ _o\$2OOOOOOOOOOOOOOOO$1//. ___ /
 $1           ______$2OOOOOOOOOOOOOOOOOOOOOOOo$1.___
 $1            --- $2OO'$3*$2 `OOOOOOOOOO'$3*$2  `OOOOO$1--
-$1                $2OO.   OOOOOOOOO'    .OOOOO o$1        $4██╗      █████╗ ██████╗ ██████╗  █████╗ ████████╗
-$1                `$2OOOooOOOOOOOOOooooOOOOOO'OOOo$1      $4██║     ██╔══██╗██╔══██╗██╔══██╗██╔══██╗╚══██╔══╝
-$1              .$2OO "OOOOOOOOOOOOOOOOOOOO"OOOOOOOo$1    $4██║     ███████║██████╔╝██████╔╝███████║   ██║   
-$1          __ $2OOOOOO`OOOOOOOOOOOOOOOO"OOOOOOOOOOOOo$1  $4██║     ██╔══██║██╔══██╗██╔══██╗██╔══██║   ██║   
-$1         ___$2OOOOOOOO_"OOOOOOOOOOO"_OOOOOOOOOOOOOOOO$1 $4███████╗██║  ██║██████╔╝██║  ██║██║  ██║   ██║   
-$1           $2OOOOO^OOOO0`(____)/"OOOOOOOOOOOOO^OOOOOO$1 $4╚══════╝╚═╝  ╚═╝╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   
+$1                $2OO.   OOOOOOOOO'    .OOOOO o$1
+$1                `$2OOOooOOOOOOOOOooooOOOOOO'OOOo$1
+$1              .$2OO "OOOOOOOOOOOOOOOOOOOO"OOOOOOOo$1
+$1          __ $2OOOOOO`OOOOOOOOOOOOOOOO"OOOOOOOOOOOOo$1
+$1         ___$2OOOOOOOO_"OOOOOOOOOOO"_OOOOOOOOOOOOOOOO$1
+$1           $2OOOOO^OOOO0`(____)/"OOOOOOOOOOOOO^OOOOOO$1
 $1           $2OOOOO OO000/000000\000000OOOOOOOO OOOOOO$1
-$1           $2OOOOO O0000000000000000 ppppoooooOOOOOO$1  $5
-$1           `$2OOOOO 0000000000000000 QQQQ "OOOOOOO"$1   $5
-$1            o"$2OOOO 000000000000000oooooOOoooooooO$1'   $5
+$1           $2OOOOO O0000000000000000 ppppoooooOOOOOO$1
+$1           `$2OOOOO 0000000000000000 QQQQ "OOOOOOO"$1
+$1            o"$2OOOO 000000000000000oooooOOoooooooO$1'
 $1            $2OOo"OOOO.00000000000000000000OOOOOOOO$1'
 $1           $2OOOOOO QQQQ 0000000000000000000OOOOOOO$1
 $1          $2OOOOOO00eeee00000000000000000000OOOOOOOO$1.
@@ -25,3 +25,10 @@ $1         $2OOOOOOOOO00000000000000000000000OOOOOOOOOO$1
 $1         `$2OOOOOOOOO000000000000000000000OOOOOOOOOOO$1
 $1           "$2OOOOOOOO0000000000000000000OOOOOOOOOOO$1'
 $1             "$2OOOOOOO00000000000000000OOOOOOOOOO$1"
+$1
+$4        ██╗      █████╗ ██████╗ ██████╗  █████╗ ████████╗
+$4        ██║     ██╔══██╗██╔══██╗██╔══██╗██╔══██╗╚══██╔══╝
+$4        ██║     ███████║██████╔╝██████╔╝███████║   ██║   
+$4        ██║     ██╔══██║██╔══██╗██╔══██╗██╔══██║   ██║   
+$4        ███████╗██║  ██║██████╔╝██║  ██║██║  ██║   ██║   
+$4        ╚══════╝╚═╝  ╚═╝╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝
