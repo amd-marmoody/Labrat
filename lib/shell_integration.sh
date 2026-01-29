@@ -840,6 +840,48 @@ clean_legacy_shell_integration() {
 # Full Setup / Teardown
 # ============================================================================
 
+# Install core LabRat utilities to PATH
+# These are the main labrat commands that should always be available
+install_core_utilities() {
+    log_step "Installing LabRat core utilities..."
+    
+    # Source bin directory (where install.sh runs from)
+    local source_bin_dir="${LABRAT_ROOT}/bin"
+    
+    # Target is LABRAT_BIN_DIR (typically ~/.local/bin)
+    local target_bin_dir="${LABRAT_BIN_DIR:-$HOME/.local/bin}"
+    
+    # Ensure target directory exists
+    ensure_dir "$target_bin_dir"
+    
+    # Core scripts that should always be installed
+    local core_scripts=(
+        "labrat-menu"
+        "labrat-theme"
+        "labrat-uninstall"
+        "labrat-ssh"
+    )
+    
+    local installed=0
+    for script in "${core_scripts[@]}"; do
+        local source="${source_bin_dir}/${script}"
+        local target="${target_bin_dir}/${script}"
+        
+        if [[ -f "$source" ]]; then
+            cp "$source" "$target"
+            chmod +x "$target"
+            log_debug "Installed ${script} to ${target}"
+            ((installed++))
+        else
+            log_debug "Core script not found: ${source}"
+        fi
+    done
+    
+    if [[ $installed -gt 0 ]]; then
+        log_success "Installed $installed core utilities to ${target_bin_dir}/"
+    fi
+}
+
 # Deploy lib files to ~/.config/labrat/lib/ for runtime access
 deploy_lib_files() {
     local target_lib_dir="${LABRAT_SHELL_CONFIG_DIR}/lib"
@@ -868,6 +910,9 @@ setup_shell_integration() {
     
     # Ensure directories exist
     ensure_shell_dirs
+    
+    # Install core utilities (labrat-menu, labrat-theme, etc.) to PATH
+    install_core_utilities
     
     # Deploy lib files for runtime access
     deploy_lib_files
