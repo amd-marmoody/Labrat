@@ -57,18 +57,14 @@ get_managed_ssh_keys() {
 get_active_keybinds() {
     local keybinds=""
     
-    # Check fzf
-    if command -v fzf &>/dev/null && is_module_enabled "fzf"; then
-        keybinds+="Ctrl+R/T (fzf) "
+    # Check atuin (owns Ctrl+R for history)
+    if command -v atuin &>/dev/null && is_module_enabled "atuin"; then
+        keybinds+="Ctrl+R (atuin) "
     fi
     
-    # Check atuin (overrides Ctrl+R if active)
-    if command -v atuin &>/dev/null && is_module_enabled "atuin"; then
-        keybinds="Ctrl+R (atuin) "
-        # fzf still has Ctrl+T
-        if command -v fzf &>/dev/null && is_module_enabled "fzf"; then
-            keybinds+="• Ctrl+T (files) "
-        fi
+    # Check fzf (Ctrl+H for history, Ctrl+T for files)
+    if command -v fzf &>/dev/null && is_module_enabled "fzf"; then
+        keybinds+="• Ctrl+H (fzf history) • Ctrl+T (files) "
     fi
     
     # Check zoxide

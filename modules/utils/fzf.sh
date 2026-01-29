@@ -68,8 +68,65 @@ fi
 # Auto-completion
 [[ $- == *i* ]] && source "$HOME/.fzf/shell/completion.bash" 2> /dev/null
 
-# Key bindings
-source "$HOME/.fzf/shell/key-bindings.bash"
+# Key bindings (Ctrl+T for files, Alt+C for directories)
+# Note: We don't source the default key-bindings.bash because it uses Ctrl+R
+# which conflicts with atuin. Instead we define custom bindings.
+
+# Ctrl+T - File search
+__fzf_select__() {
+  local cmd opts
+  cmd="${FZF_CTRL_T_COMMAND:-"command find -L . -mindepth 1 \\( -path '*/\\.*' -o -fstype 'sysfs' -o -fstype 'devfs' -o -fstype 'devtmpfs' -o -fstype 'proc' \\) -prune \
+    -o -type f -print \
+    -o -type d -print \
+    -o -type l -print 2> /dev/null | cut -b3-"}"
+  opts="--height ${FZF_TMUX_HEIGHT:-40%} --bind=ctrl-z:ignore --reverse ${FZF_DEFAULT_OPTS-} ${FZF_CTRL_T_OPTS-}"
+  eval "$cmd" | FZF_DEFAULT_OPTS="$opts" fzf -m "$@" | while read -r item; do
+    printf '%q ' "$item"
+  done
+}
+
+fzf-file-widget() {
+  local selected="$(__fzf_select__ "$@")"
+  READLINE_LINE="${READLINE_LINE:0:$READLINE_POINT}$selected${READLINE_LINE:$READLINE_POINT}"
+  READLINE_POINT=$(( READLINE_POINT + ${#selected} ))
+}
+bind -x '"\C-t": fzf-file-widget'
+
+# Alt+C - Directory search
+__fzf_cd__() {
+  local cmd opts dir
+  cmd="${FZF_ALT_C_COMMAND:-"command find -L . -mindepth 1 \\( -path '*/\\.*' -o -fstype 'sysfs' -o -fstype 'devfs' -o -fstype 'devtmpfs' -o -fstype 'proc' \\) -prune \
+    -o -type d -print 2> /dev/null | cut -b3-"}"
+  opts="--height ${FZF_TMUX_HEIGHT:-40%} --bind=ctrl-z:ignore --reverse ${FZF_DEFAULT_OPTS-} ${FZF_ALT_C_OPTS-}"
+  dir=$(eval "$cmd" | FZF_DEFAULT_OPTS="$opts" fzf +m) && printf 'cd -- %q' "$dir"
+}
+
+fzf-cd-widget() {
+  local result
+  result="$(__fzf_cd__)"
+  if [[ -n "$result" ]]; then
+    eval "$result"
+  fi
+}
+bind -x '"\ec": fzf-cd-widget'
+
+# Ctrl+H - fzf history search (avoids conflict with atuin's Ctrl+R)
+__fzf_history__() {
+  local output opts
+  opts="--height ${FZF_TMUX_HEIGHT:-40%} --bind=ctrl-z:ignore ${FZF_DEFAULT_OPTS-} -n2..,.. --scheme=history --bind=ctrl-r:toggle-sort ${FZF_CTRL_R_OPTS-} +m --read0"
+  output=$(
+    builtin fc -lnr -2147483648 |
+      last_hist=$(HISTTIMEFORMAT='' builtin history 1) perl -n -l0 -e 'BEGIN { getc; $/ = "\n\t"; $LAST = shift @ARGV } s/^[ *]//; print if !$seen{$_}++ && $_ ne $LAST' "$last_hist" |
+      FZF_DEFAULT_OPTS="$opts" fzf --query "$READLINE_LINE"
+  ) || return
+  READLINE_LINE=${output#*$'\t'}
+  if [[ -z "$READLINE_POINT" ]]; then
+    echo "$READLINE_LINE"
+  else
+    READLINE_POINT=0x7fffffff
+  fi
+}
+bind -x '"\C-h": __fzf_history__'
 
 # Default options
 export FZF_DEFAULT_OPTS="
@@ -114,8 +171,65 @@ fi
 # Auto-completion
 [[ $- == *i* ]] && source "$HOME/.fzf/shell/completion.zsh" 2> /dev/null
 
-# Key bindings
-source "$HOME/.fzf/shell/key-bindings.zsh"
+# Key bindings (Ctrl+T for files, Alt+C for directories, Ctrl+H for history)
+# Note: We don't source the default key-bindings.zsh because it uses Ctrl+R
+# which conflicts with atuin. Instead we define custom bindings.
+
+# Ctrl+T - File search
+fzf-file-widget() {
+  local cmd="${FZF_CTRL_T_COMMAND:-"command find -L . -mindepth 1 \\( -path '*/\\.*' -o -fstype 'sysfs' -o -fstype 'devfs' -o -fstype 'devtmpfs' -o -fstype 'proc' \\) -prune -o -type f -print -o -type d -print -o -type l -print 2> /dev/null | cut -b3-"}"
+  setopt localoptions pipefail no_aliases 2> /dev/null
+  local item
+  eval "$cmd" | FZF_DEFAULT_OPTS="--height ${FZF_TMUX_HEIGHT:-40%} --reverse --bind=ctrl-z:ignore ${FZF_DEFAULT_OPTS-} ${FZF_CTRL_T_OPTS-}" fzf -m "$@" | while read item; do
+    echo -n "${(q)item} "
+  done
+  local ret=$?
+  echo
+  return $ret
+}
+zle -N fzf-file-widget
+bindkey '^T' fzf-file-widget
+
+# Alt+C - Directory search
+fzf-cd-widget() {
+  local cmd="${FZF_ALT_C_COMMAND:-"command find -L . -mindepth 1 \\( -path '*/\\.*' -o -fstype 'sysfs' -o -fstype 'devfs' -o -fstype 'devtmpfs' -o -fstype 'proc' \\) -prune -o -type d -print 2> /dev/null | cut -b3-"}"
+  setopt localoptions pipefail no_aliases 2> /dev/null
+  local dir="$(eval "$cmd" | FZF_DEFAULT_OPTS="--height ${FZF_TMUX_HEIGHT:-40%} --reverse --bind=ctrl-z:ignore ${FZF_DEFAULT_OPTS-} ${FZF_ALT_C_OPTS-}" fzf +m)"
+  if [[ -z "$dir" ]]; then
+    zle redisplay
+    return 0
+  fi
+  zle push-line
+  BUFFER="cd -- ${(q)dir}"
+  zle accept-line
+  local ret=$?
+  unset dir
+  zle reset-prompt
+  return $ret
+}
+zle -N fzf-cd-widget
+bindkey '\ec' fzf-cd-widget
+
+# Ctrl+H - fzf history search (avoids conflict with atuin's Ctrl+R)
+fzf-history-widget() {
+  local selected num
+  setopt localoptions noglobsubst noposixbuiltins pipefail no_aliases 2> /dev/null
+  selected="$(fc -rl 1 | awk '{ cmd=$0; sub(/^[ \t]*[0-9]+\**[ \t]+/, "", cmd); if (!seen[cmd]++) print $0 }' |
+    FZF_DEFAULT_OPTS="--height ${FZF_TMUX_HEIGHT:-40%} ${FZF_DEFAULT_OPTS-} -n2..,.. --scheme=history --bind=ctrl-r:toggle-sort ${FZF_CTRL_R_OPTS-} --query=${(qqq)LBUFFER} +m" fzf)"
+  local ret=$?
+  if [ -n "$selected" ]; then
+    num=$(awk '{print $1}' <<< "$selected")
+    if [[ "$num" =~ ^[1-9][0-9]*$ ]]; then
+      zle vi-fetch-history -n $num
+    else
+      BUFFER="$selected"
+    fi
+  fi
+  zle reset-prompt
+  return $ret
+}
+zle -N fzf-history-widget
+bindkey '^H' fzf-history-widget
 
 # Default options
 export FZF_DEFAULT_OPTS="
