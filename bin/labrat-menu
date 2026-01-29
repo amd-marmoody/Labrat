@@ -862,20 +862,42 @@ apply_lazygit_theme_individual() {
 # ============================================================================
 
 menu_tmux_theme() {
+    # Full theme list matching tmux-theme script
     local themes=(
+        # Catppuccin
         "catppuccin-mocha"
         "catppuccin-latte"
         "catppuccin-frappe"
         "catppuccin-macchiato"
+        # Popular
         "tokyo-night"
         "dracula"
         "nord"
         "gruvbox-dark"
         "gruvbox-light"
+        # Rose Pine
         "rose-pine"
         "rose-pine-moon"
         "rose-pine-dawn"
+        # Powerline
+        "power-gold"
+        "power-everforest"
+        "power-moon"
+        "power-coral"
+        "power-snow"
+        "power-forest"
+        "power-violet"
+        "power-redwine"
+        # Kanagawa
+        "kanagawa-wave"
+        "kanagawa-dragon"
+        "kanagawa-lotus"
+        # Classic
+        "solarized-dark"
+        "solarized-light"
+        "solarized-256"
         "onedark"
+        # Minimal
         "minimal"
     )
     

@@ -268,16 +268,31 @@ select_tmux_theme() {
     # Interactive selection if not in auto mode
     if [[ "${SKIP_CONFIRMATION:-false}" != "true" ]] && [[ -t 0 ]]; then
         echo ""
-        echo -e "${BOLD}Available tmux themes:${NC}"
+        echo -e "${BOLD}Available tmux themes (popular selection):${NC}"
         echo ""
         
-        local themes=("catppuccin-mocha" "catppuccin-latte" "tokyo-night" "dracula" "nord" "gruvbox-dark")
+        # Popular themes shown during install
+        local themes=(
+            "catppuccin-mocha"
+            "catppuccin-latte"
+            "tokyo-night"
+            "dracula"
+            "nord"
+            "gruvbox-dark"
+            "rose-pine"
+            "kanagawa-wave"
+            "power-gold"
+            "onedark"
+            "minimal"
+        )
         local i=1
         for theme in "${themes[@]}"; do
             local desc="${TMUX_THEME_DESCRIPTIONS[$theme]:-}"
-            printf "  %d) %-22s %s\n" "$i" "$theme" "$desc"
+            printf "  %2d) %-22s %s\n" "$i" "$theme" "$desc"
             ((i++)) || true
         done
+        echo ""
+        echo -e "  ${DIM}(More themes available via: tmux-theme --list)${NC}"
         echo ""
         
         read -rp "Select theme [1-${#themes[@]}] (default: 1 - catppuccin-mocha): " choice
