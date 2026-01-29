@@ -29,6 +29,9 @@ install_atuin() {
         return 1
     fi
     
+    # Install bash-preexec for bash history capture
+    install_bash_preexec
+    
     local version=$(atuin --version 2>/dev/null | grep -oP '[\d.]+' | head -1)
     
     # Deploy configuration and themes
@@ -79,6 +82,26 @@ deploy_atuin_config() {
             fi
         done
         log_success "Deployed atuin themes to ${ATUIN_THEME_DIR}"
+    fi
+}
+
+# Install bash-preexec (required for atuin to capture commands in bash)
+install_bash_preexec() {
+    log_step "Installing bash-preexec (required for atuin in bash)..."
+    
+    local preexec_url="https://raw.githubusercontent.com/rcaloras/bash-preexec/master/bash-preexec.sh"
+    local preexec_path="$HOME/.bash-preexec.sh"
+    
+    if [[ -f "$preexec_path" ]]; then
+        log_info "bash-preexec already installed"
+        return 0
+    fi
+    
+    if download_file "$preexec_url" "$preexec_path" "Downloading bash-preexec"; then
+        log_success "bash-preexec installed to $preexec_path"
+    else
+        log_warn "Failed to download bash-preexec - atuin may not capture history in bash"
+        return 1
     fi
 }
 
@@ -240,8 +263,9 @@ end'
 
     # Register shell integration using new modular API
     # NOTE: --disable-up-arrow is used by default to avoid conflicts with shell defaults
+    # NOTE: bash-preexec must be sourced BEFORE atuin init for history capture to work
     register_shell_module "atuin" \
-        --init-bash 'eval "$(atuin init bash --disable-up-arrow)"' \
+        --init-bash '[[ -f ~/.bash-preexec.sh ]] && source ~/.bash-preexec.sh; eval "$(atuin init bash --disable-up-arrow)"' \
         --init-zsh 'eval "$(atuin init zsh --disable-up-arrow)"' \
         --init-fish 'atuin init fish --disable-up-arrow | source' \
         --functions-bash "$bash_functions" \
