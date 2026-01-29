@@ -66,10 +66,10 @@ setup_fzf_config() {
     mkdir -p "$HOME/.local/state/labrat"
     
     # Copy main config file
-    cp "${LABRAT_DIR}/configs/fzf/config" "$FZF_CONFIG_DIR/config"
+    cp "${LABRAT_ROOT}/configs/fzf/config" "$FZF_CONFIG_DIR/config"
     
     # Copy all theme files
-    for theme_file in "${LABRAT_DIR}/configs/fzf/themes/"*.sh; do
+    for theme_file in "${LABRAT_ROOT}/configs/fzf/themes/"*.sh; do
         if [[ -f "$theme_file" ]]; then
             cp "$theme_file" "$FZF_THEME_DIR/"
         fi
