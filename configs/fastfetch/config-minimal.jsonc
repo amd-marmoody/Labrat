@@ -73,8 +73,7 @@
             "type": "disk",
             "key": "Disk /",
             "keyColor": "magenta",
-            "folders": "/",
-            "format": "{used} / {total} ({percentage})"
+            "folders": "/"
         },
         {
             "type": "localip",
