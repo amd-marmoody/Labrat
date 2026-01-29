@@ -687,11 +687,12 @@ set -g @sessionx-zoxide-mode 'on'
 set -g @sessionx-filter-current 'false'
 set -g @sessionx-preview-enabled 'true'
 
-# Vim-tmux-navigator
-set -g @vim_navigator_mapping_left 'C-h'
-set -g @vim_navigator_mapping_right 'C-l'
-set -g @vim_navigator_mapping_up 'C-k'
-set -g @vim_navigator_mapping_down 'C-j'
+# Vim-tmux-navigator (use Alt instead of Ctrl to avoid C-h backspace conflict)
+# NOTE: Some terminals send C-h for backspace, so we use M-h/j/k/l instead
+set -g @vim_navigator_mapping_left 'M-h'
+set -g @vim_navigator_mapping_right 'M-l'
+set -g @vim_navigator_mapping_up 'M-k'
+set -g @vim_navigator_mapping_down 'M-j'
 
 # Menus (enhanced right-click context menu)
 set -g @menus_trigger 'MouseDown3Pane'
