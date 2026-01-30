@@ -156,3 +156,25 @@ install-quick:
 verify:
 	@echo "Verifying installed module configurations..."
 	@./tests/run_tests.sh verify 2>/dev/null || ./tests/run_tests.sh unit
+
+# ============================================================================
+# Comprehensive Testing (New Hardening Tests)
+# ============================================================================
+
+test-all:
+	@echo "Running comprehensive test suite..."
+	@chmod +x ./tests/run_all_tests.sh
+	@./tests/run_all_tests.sh
+
+test-harness:
+	@echo "Building and running test harness container..."
+	@docker build -t labrat-test-harness -f tests/docker/Dockerfile.test-harness .
+	@docker run --rm labrat-test-harness ./tests/run_all_tests.sh
+
+test-unit-new:
+	@echo "Running new unit tests..."
+	@for f in tests/unit/test_*.sh; do echo "Running $$f..."; bash "$$f"; done
+
+test-remote:
+	@echo "Use: ssh <host> 'cd labrat && make test-all'"
+	@echo "Or run: ./scripts/test-remote.sh <host>"

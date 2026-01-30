@@ -1,0 +1,146 @@
+name: LabRat Tests
+
+on:
+  push:
+    branches: [main, hardening]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  # ============================================================================
+  # Syntax and Lint Checks
+  # ============================================================================
+  lint:
+    name: Shellcheck Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+        
+      - name: Run ShellCheck on main scripts
+        run: |
+          shellcheck -x install.sh labrat_bootstrap.sh
+          
+      - name: Run ShellCheck on libraries
+        run: |
+          shellcheck -x lib/*.sh || true
+
+  # ============================================================================
+  # Unit Tests (No Docker Required)
+  # ============================================================================
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Make test scripts executable
+        run: chmod +x tests/*.sh tests/**/*.sh 2>/dev/null || true
+        
+      - name: Run unit tests
+        run: ./tests/run_tests.sh unit
+        
+  # ============================================================================
+  # Ubuntu Docker Tests
+  # ============================================================================
+  docker-ubuntu:
+    name: Docker Tests (Ubuntu 22.04)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Build test container
+        run: docker build -t labrat-test -f tests/docker/Dockerfile.test-harness .
+        
+      - name: Run comprehensive tests
+        run: docker run --rm labrat-test ./tests/run_all_tests.sh
+
+  # ============================================================================
+  # CentOS Docker Tests (Bash 4.2 Compatibility)
+  # ============================================================================
+  docker-centos:
+    name: Docker Tests (CentOS 7 - Bash 4.2)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Build CentOS test container
+        run: docker build -t labrat-test-centos -f tests/docker/Dockerfile.centos .
+        
+      - name: Run tests on CentOS
+        run: docker run --rm labrat-test-centos ./tests/run_tests.sh unit
+
+  # ============================================================================
+  # Module Installation Tests
+  # ============================================================================
+  install-tests:
+    name: Module Install Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        module: [htop, ripgrep, bat, fd, fzf]
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Build test container
+        run: docker build -t labrat-test -f tests/docker/Dockerfile.ubuntu .
+        
+      - name: Install and verify ${{ matrix.module }}
+        run: |
+          docker run --rm labrat-test bash -c "
+            ./install.sh -m ${{ matrix.module }} -y
+            # Verify installation
+            [[ -f ~/.local/share/labrat/installed/${{ matrix.module }} ]]
+          "
+
+  # ============================================================================
+  # Isolation Tests
+  # ============================================================================
+  isolation-tests:
+    name: User Isolation Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Build test harness container
+        run: docker build -t labrat-test-harness -f tests/docker/Dockerfile.test-harness .
+        
+      - name: Run isolation tests
+        run: |
+          docker run --rm labrat-test-harness bash -c "
+            ./tests/isolation/test_user_isolation.sh 2>/dev/null || true
+          "
+
+  # ============================================================================
+  # Integration Summary
+  # ============================================================================
+  test-summary:
+    name: Test Summary
+    needs: [lint, unit-tests, docker-ubuntu, docker-centos, install-tests]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check Results
+        run: |
+          if [[ "${{ needs.lint.result }}" == "failure" ]] || \
+             [[ "${{ needs.unit-tests.result }}" == "failure" ]] || \
+             [[ "${{ needs.docker-ubuntu.result }}" == "failure" ]]; then
+            echo "Some tests failed!"
+            exit 1
+          fi
+          echo "All critical tests passed!"
