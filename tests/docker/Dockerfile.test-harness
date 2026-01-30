@@ -48,5 +48,13 @@ WORKDIR /home/testuser/.labrat
 # Make scripts executable
 RUN chmod +x install.sh labrat_bootstrap.sh tests/*.sh tests/**/*.sh bin/* 2>/dev/null || true
 
-# Default command runs all tests
-CMD ["./tests/run_all_tests.sh"]
+# Install core modules non-interactively for testing
+RUN ./install.sh -m htop,bat,ripgrep,fd,fzf,eza,zoxide,starship -y 2>/dev/null || true
+
+# Set environment for non-interactive testing
+ENV LABRAT_TESTING=1
+ENV SKIP_CONFIRMATION=true
+ENV TERM=xterm
+
+# Default command runs all tests with timeout
+CMD ["timeout", "300", "./tests/run_all_tests.sh"]
