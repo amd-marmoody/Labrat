@@ -9,10 +9,17 @@
 # - Automatic sourcing of all module snippets
 # - Backup and restore of original shell configs
 # - Migration from legacy direct-append style
+# - Atomic file operations for safe config updates
+# - Validation and verification of shell configs
 #
 
 # shellcheck source=./common.sh
 source "${LABRAT_LIB_DIR:-$(dirname "${BASH_SOURCE[0]}")}/common.sh"
+
+# Use constants if available, otherwise fallback
+SHELL_CONFIG_PERM="${PERM_CONFIG_FILE:-644}"
+SHELL_SCRIPT_PERM="${PERM_SCRIPT:-755}"
+SHELL_PRIVATE_DIR_PERM="${PERM_PRIVATE_DIR:-700}"
 
 # ============================================================================
 # Shell Configuration Paths
@@ -1150,4 +1157,212 @@ shell_integration_status() {
     fi
     
     echo ""
+}
+
+# ============================================================================
+# Validation and Verification Functions
+# ============================================================================
+
+# Validate shell module syntax
+# Returns 0 if valid, 1 if invalid
+validate_shell_module() {
+    local module_name="$1"
+    local errors=0
+    
+    # Check bash module syntax
+    local bash_file="${LABRAT_BASH_MODULES_DIR}/${module_name}.sh"
+    if [[ -f "$bash_file" ]]; then
+        if ! bash -n "$bash_file" 2>/dev/null; then
+            log_error "Bash syntax error in $bash_file"
+            ((errors++))
+        fi
+    fi
+    
+    # Check zsh module syntax (if zsh available)
+    local zsh_file="${LABRAT_ZSH_MODULES_DIR}/${module_name}.zsh"
+    if [[ -f "$zsh_file" ]] && command_exists zsh; then
+        if ! zsh -n "$zsh_file" 2>/dev/null; then
+            log_error "Zsh syntax error in $zsh_file"
+            ((errors++))
+        fi
+    fi
+    
+    # Fish syntax check (if fish available)
+    local fish_file="${LABRAT_FISH_MODULES_DIR}/${module_name}.fish"
+    if [[ -f "$fish_file" ]] && command_exists fish; then
+        if ! fish -n "$fish_file" 2>/dev/null; then
+            log_error "Fish syntax error in $fish_file"
+            ((errors++))
+        fi
+    fi
+    
+    return $errors
+}
+
+# Validate all shell modules
+validate_all_shell_modules() {
+    log_step "Validating shell module syntax..."
+    
+    local modules=($(list_shell_modules))
+    local total=${#modules[@]}
+    local errors=0
+    
+    for module in "${modules[@]}"; do
+        if ! validate_shell_module "$module"; then
+            ((errors++))
+        fi
+    done
+    
+    if [[ $errors -eq 0 ]]; then
+        log_success "All $total shell modules validated successfully"
+        return 0
+    else
+        log_error "$errors module(s) have syntax errors"
+        return 1
+    fi
+}
+
+# Verify shell integration is working
+# Checks that configs exist, hooks are installed, and syntax is valid
+verify_shell_integration() {
+    log_step "Verifying shell integration..."
+    
+    local issues=0
+    
+    # Check main config files exist
+    if [[ ! -f "$LABRAT_BASH_RC" ]]; then
+        log_warn "Bash main config not found: $LABRAT_BASH_RC"
+        ((issues++))
+    fi
+    
+    # Check at least one hook is installed
+    local hook_found=false
+    for shell in bash zsh fish; do
+        local rc_file
+        case "$shell" in
+            bash) rc_file="$HOME/.bashrc" ;;
+            zsh) rc_file="$HOME/.zshrc" ;;
+            fish) rc_file="$HOME/.config/fish/config.fish" ;;
+        esac
+        
+        if [[ -f "$rc_file" ]] && grep -q "LabRat shell integration" "$rc_file" 2>/dev/null; then
+            hook_found=true
+            break
+        fi
+    done
+    
+    if [[ "$hook_found" != "true" ]]; then
+        log_warn "No shell hooks found - run setup_shell_integration"
+        ((issues++))
+    fi
+    
+    # Validate all module syntax
+    if ! validate_all_shell_modules; then
+        ((issues++))
+    fi
+    
+    # Check directory permissions
+    if [[ -d "$LABRAT_SHELL_CONFIG_DIR" ]]; then
+        local perms=$(stat -c %a "$LABRAT_SHELL_CONFIG_DIR" 2>/dev/null || stat -f %A "$LABRAT_SHELL_CONFIG_DIR" 2>/dev/null)
+        # Accept 700, 755, etc. as valid
+        log_debug "Shell config dir permissions: $perms"
+    fi
+    
+    if [[ $issues -eq 0 ]]; then
+        log_success "Shell integration verified"
+        return 0
+    else
+        log_warn "Shell integration has $issues issue(s)"
+        return 1
+    fi
+}
+
+# Fix common shell integration issues
+fix_shell_integration() {
+    log_step "Fixing shell integration issues..."
+    
+    local fixed=0
+    
+    # Regenerate main configs if missing
+    if [[ ! -f "$LABRAT_BASH_RC" ]]; then
+        generate_bash_main_config
+        log_info "Regenerated bash main config"
+        ((fixed++))
+    fi
+    
+    if [[ ! -f "$LABRAT_ZSH_RC" ]]; then
+        generate_zsh_main_config
+        log_info "Regenerated zsh main config"
+        ((fixed++))
+    fi
+    
+    if [[ ! -f "$LABRAT_FISH_RC" ]]; then
+        generate_fish_main_config
+        log_info "Regenerated fish main config"
+        ((fixed++))
+    fi
+    
+    # Ensure directories exist with correct permissions
+    ensure_shell_dirs
+    
+    # Fix directory permissions if needed
+    chmod 755 "$LABRAT_SHELL_CONFIG_DIR" 2>/dev/null || true
+    chmod 755 "$LABRAT_SHELL_MODULES_DIR" 2>/dev/null || true
+    
+    if [[ $fixed -gt 0 ]]; then
+        log_success "Fixed $fixed issue(s)"
+    else
+        log_info "No fixes needed"
+    fi
+    
+    return 0
+}
+
+# Get shell integration health score (0-100)
+shell_integration_health() {
+    local score=100
+    local issues=()
+    
+    # Check main config files (20 points each)
+    [[ ! -f "$LABRAT_BASH_RC" ]] && { ((score-=20)); issues+=("Missing bash config"); }
+    [[ ! -f "$LABRAT_ZSH_RC" ]] && { ((score-=10)); issues+=("Missing zsh config"); }
+    
+    # Check hooks (20 points)
+    local hook_found=false
+    for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
+        if [[ -f "$rc" ]] && grep -q "LabRat shell integration" "$rc" 2>/dev/null; then
+            hook_found=true
+            break
+        fi
+    done
+    [[ "$hook_found" != "true" ]] && { ((score-=20)); issues+=("No shell hooks"); }
+    
+    # Check backups (10 points)
+    [[ ! -d "$LABRAT_ORIGINAL_BACKUP_DIR" ]] && { ((score-=10)); issues+=("No original backups"); }
+    
+    # Check module directory (10 points)
+    [[ ! -d "$LABRAT_SHELL_MODULES_DIR" ]] && { ((score-=10)); issues+=("Missing modules dir"); }
+    
+    # Validate modules (20 points)
+    local modules=($(list_shell_modules 2>/dev/null))
+    for module in "${modules[@]}"; do
+        if ! validate_shell_module "$module" 2>/dev/null; then
+            ((score-=5))
+            issues+=("Syntax error in $module")
+        fi
+    done
+    
+    # Ensure score doesn't go below 0
+    [[ $score -lt 0 ]] && score=0
+    
+    # Output
+    echo "Shell Integration Health: ${score}/100"
+    if [[ ${#issues[@]} -gt 0 ]]; then
+        echo "Issues:"
+        for issue in "${issues[@]}"; do
+            echo "  - $issue"
+        done
+    fi
+    
+    return $((100 - score))
 }
