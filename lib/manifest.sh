@@ -18,7 +18,83 @@ source "${LABRAT_LIB_DIR:-$(dirname "${BASH_SOURCE[0]}")}/common.sh"
 # ============================================================================
 
 LABRAT_MANIFEST_FILE="${LABRAT_DATA_DIR}/manifest.json"
+LABRAT_MANIFEST_LOCK="${LABRAT_DATA_DIR}/.manifest.lock"
 LABRAT_MANIFEST_VERSION="1.0"
+
+# Lock timeout in seconds
+MANIFEST_LOCK_TIMEOUT="${MANIFEST_LOCK_TIMEOUT:-10}"
+
+# ============================================================================
+# File Locking for Safe Concurrent Access
+# ============================================================================
+
+# Internal lock file descriptor
+_MANIFEST_LOCK_FD=""
+
+# Acquire manifest lock
+# Usage: _manifest_lock [timeout]
+_manifest_lock() {
+    local timeout="${1:-$MANIFEST_LOCK_TIMEOUT}"
+    
+    # Use file_ops.sh if available
+    if declare -f acquire_lock &>/dev/null; then
+        acquire_lock "$LABRAT_MANIFEST_LOCK" "$timeout"
+        return $?
+    fi
+    
+    # Fallback implementation
+    ensure_dir "$(dirname "$LABRAT_MANIFEST_LOCK")"
+    
+    exec 201>"$LABRAT_MANIFEST_LOCK" || {
+        log_error "Cannot open manifest lock file"
+        return 1
+    }
+    
+    _MANIFEST_LOCK_FD=201
+    
+    if ! flock -w "$timeout" 201; then
+        log_warn "Cannot acquire manifest lock (timeout after ${timeout}s)"
+        exec 201>&- 2>/dev/null
+        _MANIFEST_LOCK_FD=""
+        return 1
+    fi
+    
+    log_debug "Acquired manifest lock"
+    return 0
+}
+
+# Release manifest lock
+_manifest_unlock() {
+    # Use file_ops.sh if available
+    if declare -f release_lock &>/dev/null && [[ -n "${LABRAT_LOCK_FD:-}" ]]; then
+        release_lock
+        return 0
+    fi
+    
+    # Fallback implementation
+    if [[ -n "$_MANIFEST_LOCK_FD" ]]; then
+        flock -u "$_MANIFEST_LOCK_FD" 2>/dev/null || true
+        eval "exec ${_MANIFEST_LOCK_FD}>&-" 2>/dev/null || true
+        _MANIFEST_LOCK_FD=""
+        log_debug "Released manifest lock"
+    fi
+}
+
+# Execute a function while holding the manifest lock
+# Usage: _with_manifest_lock function_name args...
+_with_manifest_lock() {
+    local func="$1"
+    shift
+    
+    _manifest_lock || return 1
+    
+    local result=0
+    "$func" "$@" || result=$?
+    
+    _manifest_unlock
+    
+    return $result
+}
 
 # ============================================================================
 # JSON Helpers (minimal, no jq dependency)
@@ -77,9 +153,8 @@ EOF
 # Module Tracking
 # ============================================================================
 
-# Add or update a module in the manifest
-# Usage: manifest_add_module "module_name" "version" [shell_integration:true/false]
-manifest_add_module() {
+# Internal function to add module (called under lock)
+_manifest_add_module_impl() {
     local module_name="$1"
     local version="${2:-unknown}"
     local has_shell="${3:-false}"
@@ -107,6 +182,12 @@ manifest_add_module() {
     fi
     
     log_debug "Manifest: added module $module_name (v$version)"
+}
+
+# Public function to add module (with locking)
+# Usage: manifest_add_module "module_name" "version" [shell_integration:true/false]
+manifest_add_module() {
+    _with_manifest_lock _manifest_add_module_impl "$@"
 }
 
 # Simple fallback for manifest_add_module when jq is not available

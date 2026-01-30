@@ -2,22 +2,49 @@
 #
 # LabRat - Common utilities and shared functions
 #
+# This is the main library that should be sourced by install.sh and modules.
+# It loads all other required libraries in the correct order.
+#
 
-# Ensure colors are loaded
+# ============================================================================
+# Library Loading (in dependency order)
+# ============================================================================
+
 LABRAT_LIB_DIR="${LABRAT_LIB_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+
+# 1. Load colors first (no dependencies)
 # shellcheck source=./colors.sh
 source "${LABRAT_LIB_DIR}/colors.sh"
+
+# 2. Load constants (provides centralized definitions)
+# shellcheck source=./constants.sh
+if [[ -f "${LABRAT_LIB_DIR}/constants.sh" ]]; then
+    source "${LABRAT_LIB_DIR}/constants.sh"
+fi
+
+# 3. Load error handling framework (depends on constants)
+# shellcheck source=./errors.sh
+if [[ -f "${LABRAT_LIB_DIR}/errors.sh" ]]; then
+    source "${LABRAT_LIB_DIR}/errors.sh"
+fi
+
+# 4. Load file operations (depends on constants, errors)
+# shellcheck source=./file_ops.sh
+if [[ -f "${LABRAT_LIB_DIR}/file_ops.sh" ]]; then
+    source "${LABRAT_LIB_DIR}/file_ops.sh"
+fi
 
 # ============================================================================
 # Global Configuration
 # ============================================================================
 
 # Installation prefix (where binaries go)
-LABRAT_PREFIX="${LABRAT_PREFIX:-$HOME/.local}"
+# Use constants if available, otherwise fall back to defaults
+LABRAT_PREFIX="${LABRAT_PREFIX:-${LABRAT_DEFAULT_PREFIX:-$HOME/.local}}"
 LABRAT_BIN_DIR="${LABRAT_BIN_DIR:-$LABRAT_PREFIX/bin}"
-LABRAT_CONFIG_DIR="${LABRAT_CONFIG_DIR:-$HOME/.config}"
-LABRAT_DATA_DIR="${LABRAT_DATA_DIR:-$HOME/.local/share/labrat}"
-LABRAT_CACHE_DIR="${LABRAT_CACHE_DIR:-$HOME/.cache/labrat}"
+LABRAT_CONFIG_DIR="${LABRAT_CONFIG_DIR:-${LABRAT_DEFAULT_CONFIG_DIR:-$HOME/.config}}"
+LABRAT_DATA_DIR="${LABRAT_DATA_DIR:-${LABRAT_DEFAULT_DATA_DIR:-$HOME/.local/share/labrat}}"
+LABRAT_CACHE_DIR="${LABRAT_CACHE_DIR:-${LABRAT_DEFAULT_CACHE_DIR:-$HOME/.cache/labrat}}"
 
 # Logging verbosity
 LABRAT_VERBOSE="${LABRAT_VERBOSE:-0}"
