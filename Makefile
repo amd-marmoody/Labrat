@@ -47,6 +47,17 @@ help:
 test: test-unit test-integration
 	@echo "All tests completed"
 
+test-isolation:
+	@echo "Running user isolation tests (requires Docker)..."
+	@chmod +x ./tests/isolation/test_user_isolation.sh
+	@./tests/isolation/test_user_isolation.sh
+
+test-full: test test-isolation
+	@echo "Full test suite (including isolation tests) completed"
+
+test-security: test-isolation
+	@echo "Security tests completed"
+
 test-unit:
 	@./tests/run_tests.sh unit
 
