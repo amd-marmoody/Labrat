@@ -845,14 +845,17 @@ clean_legacy_shell_integration() {
 install_core_utilities() {
     log_step "Installing LabRat core utilities..."
     
-    # Source bin directory (where install.sh runs from)
+    # Source directories (where install.sh runs from)
     local source_bin_dir="${LABRAT_ROOT}/bin"
+    local source_lib_dir="${LABRAT_LIB_DIR:-${LABRAT_ROOT}/lib}"
     
-    # Target is LABRAT_BIN_DIR (typically ~/.local/bin)
+    # Target directories (typically ~/.local/bin and ~/.local/lib)
     local target_bin_dir="${LABRAT_BIN_DIR:-$HOME/.local/bin}"
+    local target_lib_dir="${LABRAT_PREFIX:-$HOME/.local}/lib"
     
-    # Ensure target directory exists
+    # Ensure target directories exist
     ensure_dir "$target_bin_dir"
+    ensure_dir "$target_lib_dir"
     
     # Core scripts that should always be installed
     local core_scripts=(
@@ -877,8 +880,33 @@ install_core_utilities() {
         fi
     done
     
+    # Core lib files that scripts need
+    local lib_files=(
+        "colors.sh"
+        "common.sh"
+        "state.sh"
+        "menu_helpers.sh"
+        "manifest.sh"
+    )
+    
+    local libs_installed=0
+    for lib_file in "${lib_files[@]}"; do
+        local source="${source_lib_dir}/${lib_file}"
+        local target="${target_lib_dir}/${lib_file}"
+        
+        if [[ -f "$source" ]]; then
+            cp "$source" "$target"
+            log_debug "Installed ${lib_file} to ${target_lib_dir}/"
+            ((libs_installed++))
+        fi
+    done
+    
     if [[ $installed -gt 0 ]]; then
         log_success "Installed $installed core utilities to ${target_bin_dir}/"
+    fi
+    
+    if [[ $libs_installed -gt 0 ]]; then
+        log_success "Installed $libs_installed lib files to ${target_lib_dir}/"
     fi
 }
 
