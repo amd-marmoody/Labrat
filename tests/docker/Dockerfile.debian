@@ -1,0 +1,48 @@
+# LabRat Test Container - Debian 12
+FROM debian:12
+
+# Prevent interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    sudo \
+    curl \
+    wget \
+    git \
+    ca-certificates \
+    bash \
+    jq \
+    unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create test user
+RUN useradd -m -s /bin/bash testuser && \
+    echo "testuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Set up test environment
+USER testuser
+WORKDIR /home/testuser
+
+# Create standard directories
+RUN mkdir -p ~/.local/bin ~/.local/share ~/.config ~/.cache
+
+# Add .local/bin to PATH
+ENV PATH="/home/testuser/.local/bin:${PATH}"
+
+# Copy LabRat source
+COPY --chown=testuser:testuser . /home/testuser/.labrat
+
+# Set working directory
+WORKDIR /home/testuser/.labrat
+
+# Make scripts executable
+RUN chmod +x install.sh labrat_bootstrap.sh tests/*.sh tests/**/*.sh bin/* 2>/dev/null || true
+
+# Set environment for non-interactive testing
+ENV LABRAT_TESTING=1
+ENV SKIP_CONFIRMATION=true
+ENV TERM=xterm
+
+# Default command
+CMD ["bash"]

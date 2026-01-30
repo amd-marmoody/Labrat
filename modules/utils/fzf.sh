@@ -140,11 +140,14 @@ export FZF_ALT_C_OPTS="--preview 'tree -C {} | head -100'"
 
 # Use official fzf shell integration
 # Disable Ctrl+R (atuin owns it) by setting FZF_CTRL_R_COMMAND to empty
-if command -v fzf &> /dev/null; then
+# Only initialize if we have a TTY (avoid errors in Docker/non-interactive)
+if command -v fzf &> /dev/null && [[ -t 0 ]] && [[ -e /dev/tty ]]; then
     FZF_CTRL_R_COMMAND= eval "$(fzf --bash)"
 fi
 
 # Add Alt+R as alternative fzf history search (for when atuin is not wanted)
+# Only define if we have a TTY
+if [[ -t 0 ]] && [[ -e /dev/tty ]]; then
 __fzf_history_alt__() {
     local output opts
     opts="--height 40% --bind=ctrl-z:ignore ${FZF_DEFAULT_OPTS-} -n2..,.. --scheme=history --bind=ctrl-r:toggle-sort +m --read0"
@@ -161,6 +164,7 @@ __fzf_history_alt__() {
     fi
 }
 bind -x '"\er": __fzf_history_alt__'
+fi  # End TTY check for Alt+R
 FZF_BASH
 
     # Create zsh integration file
@@ -203,11 +207,14 @@ export FZF_ALT_C_OPTS="--preview 'tree -C {} | head -100'"
 
 # Use official fzf shell integration
 # Disable Ctrl+R (atuin owns it) by setting FZF_CTRL_R_COMMAND to empty
-if command -v fzf &> /dev/null; then
+# Only initialize if we have a TTY (avoid errors in Docker/non-interactive)
+if command -v fzf &> /dev/null && [[ -t 0 ]] && [[ -e /dev/tty ]]; then
     FZF_CTRL_R_COMMAND= source <(fzf --zsh)
 fi
 
 # Add Alt+R as alternative fzf history search (for when atuin is not wanted)
+# Only define if we have a TTY
+if [[ -t 0 ]] && [[ -e /dev/tty ]]; then
 fzf-history-widget-alt() {
     local selected num
     setopt localoptions noglobsubst noposixbuiltins pipefail no_aliases 2> /dev/null
@@ -227,6 +234,7 @@ fzf-history-widget-alt() {
 }
 zle -N fzf-history-widget-alt
 bindkey '\er' fzf-history-widget-alt
+fi  # End TTY check for Alt+R
 FZF_ZSH
 
     # Add to bashrc if needed

@@ -762,6 +762,11 @@ TMUX_CONFIG
 install_nerdfonts() {
     local fonts_dir="$HOME/.local/share/fonts/NerdFonts"
     
+    # Skip in test mode
+    if [[ "${LABRAT_TESTING:-}" == "1" ]]; then
+        return 0
+    fi
+    
     # Check if already installed
     if [[ -d "$fonts_dir" ]] && [[ -n "$(ls -A "$fonts_dir" 2>/dev/null)" ]]; then
         echo -e "  ${GREEN}✓${NC} Nerd Fonts already installed"
@@ -800,6 +805,11 @@ install_nerdfonts() {
 
 install_noto_symbols() {
     local theme="$1"
+    
+    # Skip in test mode
+    if [[ "${LABRAT_TESTING:-}" == "1" ]]; then
+        return 0
+    fi
     
     # Only needed for tokyo-night
     if [[ "$theme" != "tokyo-night" ]]; then
@@ -843,6 +853,11 @@ install_noto_symbols() {
 install_theme_deps() {
     local theme="$1"
     local deps="${THEME_DEPS[$theme]:-}"
+    
+    # Skip all deps in test mode
+    if [[ "${LABRAT_TESTING:-}" == "1" ]]; then
+        return 0
+    fi
     
     # Always ensure Nerd Fonts are installed
     install_nerdfonts

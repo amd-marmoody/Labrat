@@ -646,3 +646,117 @@ cleanup_temp_files() {
     find "$temp_dir" -maxdepth 1 -name "labrat.*" -type f -mtime +1 -delete 2>/dev/null || true
     find "$temp_dir" -maxdepth 1 -name ".tmp.*" -type f -mtime +1 -delete 2>/dev/null || true
 }
+
+# ============================================================================
+# Path Validation
+# ============================================================================
+
+# Validate that a path is safe and doesn't contain dangerous patterns
+# Usage: validate_path "/path/to/check"
+# Returns: 0 if valid, E_INVALID_INPUT if dangerous
+validate_path() {
+    local path="$1"
+    
+    if [[ -z "$path" ]]; then
+        handle_error $E_INVALID_INPUT "validate_path: empty path"
+        return $E_INVALID_INPUT
+    fi
+    
+    # Check for dangerous shell metacharacters
+    # Note: Bash cannot store null bytes in variables, so we skip that check
+    if [[ "$path" =~ [\;\|\&\$\`\<\>] ]]; then
+        handle_error $E_INVALID_INPUT "validate_path: dangerous characters in path"
+        return $E_INVALID_INPUT
+    fi
+    
+    # Check for command substitution patterns
+    if [[ "$path" == *'$('* ]] || [[ "$path" == *'`'* ]]; then
+        handle_error $E_INVALID_INPUT "validate_path: command substitution in path"
+        return $E_INVALID_INPUT
+    fi
+    
+    return 0
+}
+
+# ============================================================================
+# Permission Checking
+# ============================================================================
+
+# Check file permissions match expected value
+# Usage: check_file_permissions "/path/to/file" "600"
+# Returns: 0 if match, 1 if mismatch or error
+check_file_permissions() {
+    local file="$1"
+    local expected="$2"
+    
+    if [[ -z "$file" ]]; then
+        handle_error $E_INVALID_INPUT "check_file_permissions: file path required"
+        return $E_INVALID_INPUT
+    fi
+    
+    if [[ -z "$expected" ]]; then
+        handle_error $E_INVALID_INPUT "check_file_permissions: expected permissions required"
+        return $E_INVALID_INPUT
+    fi
+    
+    if [[ ! -e "$file" ]]; then
+        handle_error $E_FILE_NOT_FOUND "check_file_permissions: file not found: $file"
+        return $E_FILE_NOT_FOUND
+    fi
+    
+    # Get current permissions
+    local actual
+    if command -v stat &>/dev/null; then
+        # Linux stat
+        actual=$(stat -c '%a' "$file" 2>/dev/null)
+        if [[ -z "$actual" ]]; then
+            # macOS stat
+            actual=$(stat -f '%Lp' "$file" 2>/dev/null)
+        fi
+    fi
+    
+    if [[ -z "$actual" ]]; then
+        handle_error $E_GENERAL "check_file_permissions: cannot determine permissions"
+        return $E_GENERAL
+    fi
+    
+    # Normalize both values (remove leading zeros)
+    expected="${expected#0}"
+    expected="${expected#0}"
+    actual="${actual#0}"
+    actual="${actual#0}"
+    
+    if [[ "$actual" != "$expected" ]]; then
+        verbose "Permission mismatch: $file (expected: $expected, got: $actual)"
+        return 1
+    fi
+    
+    return 0
+}
+
+# Check if file has secure permissions (not world-readable/writable)
+# Usage: check_secure_permissions "/path/to/file"
+# Returns: 0 if secure, 1 if insecure
+check_secure_permissions() {
+    local file="$1"
+    
+    if [[ ! -e "$file" ]]; then
+        return 0  # Non-existent file is "secure"
+    fi
+    
+    local perms
+    perms=$(stat -c '%a' "$file" 2>/dev/null || stat -f '%Lp' "$file" 2>/dev/null)
+    
+    if [[ -z "$perms" ]]; then
+        return 1
+    fi
+    
+    # Check world permissions (last digit)
+    local world_perms="${perms: -1}"
+    if [[ "$world_perms" != "0" ]]; then
+        verbose "File has world permissions: $file (mode: $perms)"
+        return 1
+    fi
+    
+    return 0
+}

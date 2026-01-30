@@ -21,34 +21,34 @@ source "${LABRAT_ROOT}/lib/errors.sh"
 
 test_error_context_push_pop() {
     # Start with empty context
-    _ERROR_CONTEXT_STACK=()
+    _LABRAT_ERROR_CONTEXT_STACK=()
     
     push_error_context "Level 1"
-    assert_equals 1 "${#_ERROR_CONTEXT_STACK[@]}" "Context stack should have 1 item"
+    assert_equals 1 "${#_LABRAT_ERROR_CONTEXT_STACK[@]}" "Context stack should have 1 item"
     
     push_error_context "Level 2"
-    assert_equals 2 "${#_ERROR_CONTEXT_STACK[@]}" "Context stack should have 2 items"
+    assert_equals 2 "${#_LABRAT_ERROR_CONTEXT_STACK[@]}" "Context stack should have 2 items"
     
     pop_error_context
-    assert_equals 1 "${#_ERROR_CONTEXT_STACK[@]}" "Context stack should have 1 item after pop"
+    assert_equals 1 "${#_LABRAT_ERROR_CONTEXT_STACK[@]}" "Context stack should have 1 item after pop"
     
     pop_error_context
-    assert_equals 0 "${#_ERROR_CONTEXT_STACK[@]}" "Context stack should be empty"
+    assert_equals 0 "${#_LABRAT_ERROR_CONTEXT_STACK[@]}" "Context stack should be empty"
 }
 
 test_error_context_string() {
-    _ERROR_CONTEXT_STACK=()
+    _LABRAT_ERROR_CONTEXT_STACK=()
     
     push_error_context "Installing tmux"
     push_error_context "Cloning TPM"
     
     local context
-    context=$(get_error_context)
+    context=$(get_full_error_context)  # Use get_full_error_context to see all levels
     assert_contains "$context" "Installing tmux" "Context should contain first level"
     assert_contains "$context" "Cloning TPM" "Context should contain second level"
     
     # Cleanup
-    _ERROR_CONTEXT_STACK=()
+    _LABRAT_ERROR_CONTEXT_STACK=()
 }
 
 test_error_code_to_message() {
@@ -94,14 +94,14 @@ test_safe_exec_failure() {
 
 test_error_context_isolation() {
     # Context should be isolated between tests
-    _ERROR_CONTEXT_STACK=()
+    _LABRAT_ERROR_CONTEXT_STACK=()
     
     push_error_context "Isolated context"
-    assert_equals 1 "${#_ERROR_CONTEXT_STACK[@]}" "Should have one context"
+    assert_equals 1 "${#_LABRAT_ERROR_CONTEXT_STACK[@]}" "Should have one context"
     
     # Cleanup
-    _ERROR_CONTEXT_STACK=()
-    assert_equals 0 "${#_ERROR_CONTEXT_STACK[@]}" "Stack should be empty after cleanup"
+    _LABRAT_ERROR_CONTEXT_STACK=()
+    assert_equals 0 "${#_LABRAT_ERROR_CONTEXT_STACK[@]}" "Stack should be empty after cleanup"
 }
 
 test_check_bash_version() {

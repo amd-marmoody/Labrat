@@ -8,10 +8,20 @@
 set -e
 
 # Configuration - match paths from common.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LABRAT_ROOT="${LABRAT_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 LABRAT_DATA_DIR="${LABRAT_DATA_DIR:-$HOME/.local/share/labrat}"
-PRESET_DIR="${LABRAT_DATA_DIR}/configs/starship/presets"
+
+# Preset directories - check labrat configs first, then user data dir
+PRESET_DIR="${LABRAT_ROOT}/configs/starship/presets"
+PRESET_DIR_FALLBACK="${LABRAT_DATA_DIR}/configs/starship/presets"
 PRESET_MARKER="${LABRAT_DATA_DIR}/current-starship-preset"
 STARSHIP_CONFIG="$HOME/.config/starship.toml"
+
+# Use fallback if primary doesn't exist
+if [[ ! -d "$PRESET_DIR" ]] && [[ -d "$PRESET_DIR_FALLBACK" ]]; then
+    PRESET_DIR="$PRESET_DIR_FALLBACK"
+fi
 
 # Colors
 RED='\033[0;31m'
@@ -24,7 +34,7 @@ NC='\033[0m'
 BOLD='\033[1m'
 
 # Ensure data directory exists
-mkdir -p "$(dirname "$PRESET_MARKER")"
+mkdir -p "$(dirname "$PRESET_MARKER")" 2>/dev/null || true
 
 # Get list of available presets
 get_presets() {

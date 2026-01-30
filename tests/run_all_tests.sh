@@ -247,6 +247,46 @@ run_quick_install_test() {
     return 0
 }
 
+install_test_modules() {
+    log_header "Installing Test Modules"
+    
+    # Skip if running on host (not in container) and LABRAT_TESTING not set
+    if [[ -z "${LABRAT_TESTING:-}" ]] && [[ ! -f /.dockerenv ]]; then
+        log_skip "Skipping module install (not in test container)"
+        log_suite "Set LABRAT_TESTING=1 to enable real installation"
+        return 0
+    fi
+    
+    # Install core modules needed for testing
+    local test_modules="fzf,ripgrep,bat,fd,eza,starship,zoxide"
+    
+    log_suite "Installing modules: $test_modules"
+    
+    # Run installation with --yes and capture result
+    if "$LABRAT_ROOT/install.sh" -m "$test_modules" -y 2>&1; then
+        log_pass "Core modules installed"
+    else
+        log_fail "Module installation failed"
+        return 1
+    fi
+    
+    # Verify PATH includes installed binaries
+    export PATH="$HOME/.local/bin:$PATH"
+    
+    # Check each module was installed
+    local failed=0
+    for module in fzf rg bat fd eza starship zoxide; do
+        if command -v "$module" &>/dev/null; then
+            log_pass "$module installed and in PATH"
+        else
+            log_fail "$module not found after install"
+            ((failed++))
+        fi
+    done
+    
+    return $failed
+}
+
 # ============================================================================
 # Results Summary
 # ============================================================================
@@ -297,6 +337,9 @@ main() {
     
     # Run unit tests
     run_unit_tests
+    
+    # Install test modules (before integration tests need them)
+    install_test_modules
     
     # Run integration tests
     run_integration_tests

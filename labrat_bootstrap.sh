@@ -4,7 +4,7 @@
 # Your trusty environment for every test cage 🐀
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/YOUR_USER/labrat/main/labrat_bootstrap.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/amd-marmoody/Labrat/main/labrat_bootstrap.sh | bash
 #   curl -fsSL ... | bash -s -- --modules tmux,fzf --prefix ~/.local
 #
 # This script:
@@ -19,7 +19,7 @@ set -euo pipefail
 # Configuration
 # ============================================================================
 
-LABRAT_REPO="${LABRAT_REPO:-https://github.com/YOUR_USER/labrat.git}"
+LABRAT_REPO="${LABRAT_REPO:-https://github.com/amd-marmoody/Labrat.git}"
 LABRAT_BRANCH="${LABRAT_BRANCH:-main}"
 LABRAT_DIR="${LABRAT_DIR:-$HOME/.labrat}"
 

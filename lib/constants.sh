@@ -6,6 +6,10 @@
 # This file should be sourced by all other library files to ensure consistency.
 #
 
+# Source guard - prevent multiple sourcing
+[[ -n "${_LABRAT_CONSTANTS_LOADED:-}" ]] && return 0
+_LABRAT_CONSTANTS_LOADED=1
+
 # ============================================================================
 # Version Information
 # ============================================================================
@@ -18,6 +22,7 @@ readonly LABRAT_MANIFEST_VERSION="1.0"
 # ============================================================================
 
 readonly BASH_VERSION_MIN="4.0"
+readonly LABRAT_MIN_BASH_VERSION="4.0"  # Alias for test compatibility
 readonly TMUX_VERSION_MIN="3.3"
 readonly TMUX_VERSION_LATEST="3.5a"
 
@@ -64,7 +69,7 @@ readonly LABRAT_GLOBAL_THEME_FILENAME="current-theme"
 readonly DEFAULT_TMUX_THEME="catppuccin-mocha"
 readonly DEFAULT_STARSHIP_PRESET="labrat"
 readonly DEFAULT_FZF_THEME="catppuccin-mocha"
-readonly DEFAULT_BAT_THEME="Catppuccin Mocha"
+readonly DEFAULT_BAT_THEME="Catppuccin Mocha"  # With space to match .tmTheme filename
 readonly DEFAULT_BTOP_THEME="catppuccin_mocha"
 readonly DEFAULT_ATUIN_THEME="catppuccin-mocha"
 
@@ -168,6 +173,10 @@ readonly PERM_SSH_DIR=700
 readonly PERM_SSH_PRIVATE_KEY=600
 readonly PERM_SSH_PUBLIC_KEY=644
 readonly PERM_SSH_CONFIG=600
+
+# Aliases for test compatibility
+readonly SHELL_CONFIG_PERM=644
+readonly SHELL_SCRIPT_PERM=755
 
 # ============================================================================
 # Logging Configuration

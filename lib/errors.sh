@@ -84,6 +84,11 @@ error_code_message() {
     esac
 }
 
+# Alias for backward compatibility
+error_code_to_message() {
+    error_code_message "$@"
+}
+
 # ============================================================================
 # Unified Error Handler
 # ============================================================================

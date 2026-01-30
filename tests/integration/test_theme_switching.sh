@@ -14,14 +14,14 @@ source "${SCRIPT_DIR}/../lib/test_framework.sh"
 # Theme Data
 # ============================================================================
 
-# tmux themes
+# tmux themes (must match tmux-theme script's THEME_PLUGINS keys)
 TMUX_THEMES=(
     "catppuccin-mocha"
     "catppuccin-latte"
     "dracula"
     "nord"
     "tokyo-night"
-    "gruvbox"
+    "gruvbox-dark"
     "onedark"
     "minimal"
 )
@@ -93,6 +93,13 @@ test_tmux_theme_switching() {
         return 0
     fi
     
+    # Check if tmux module is installed (theme file exists)
+    local data_dir="${LABRAT_DATA_DIR:-$HOME/.local/share/labrat}"
+    if [[ ! -f "$data_dir/installed/tmux" ]] && [[ ! -f "$HOME/.tmux.conf" ]]; then
+        skip_test "tmux module not installed (skipping theme switching)"
+        return 0
+    fi
+    
     local failed=0
     
     for theme in "${TMUX_THEMES[@]}"; do
@@ -110,7 +117,8 @@ test_tmux_theme_switching() {
 test_tmux_theme_persistence() {
     log_test "Testing tmux theme persistence"
     
-    local theme_file="$HOME/.config/labrat/tmux_theme"
+    # tmux-theme stores theme in ~/.tmux-theme (not ~/.config/labrat/tmux_theme)
+    local theme_file="$HOME/.tmux-theme"
     
     if [[ ! -x "$LABRAT_ROOT/bin/tmux-theme" ]]; then
         skip_test "tmux-theme not found"

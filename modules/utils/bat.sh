@@ -145,8 +145,8 @@ setup_bat_config() {
     cat > "$config_file" << 'BAT_CONFIG'
 # bat configuration (added by LabRat)
 
-# Theme
---theme="Catppuccin-mocha"
+# Theme (use "Catppuccin Mocha" with space - matches .tmTheme filename)
+--theme="Catppuccin Mocha"
 
 # Show line numbers
 --style="numbers,changes,header"

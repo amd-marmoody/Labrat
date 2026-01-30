@@ -7,6 +7,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+env:
+  LABRAT_TESTING: 1
+  SKIP_CONFIRMATION: true
+
 jobs:
   # ============================================================================
   # Syntax and Lint Checks
@@ -21,12 +25,15 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y shellcheck
         
       - name: Run ShellCheck on main scripts
-        run: |
-          shellcheck -x install.sh labrat_bootstrap.sh
+        run: shellcheck -x install.sh labrat_bootstrap.sh
           
       - name: Run ShellCheck on libraries
-        run: |
-          shellcheck -x lib/*.sh || true
+        run: shellcheck -x lib/*.sh
+        continue-on-error: true
+        
+      - name: Run ShellCheck on bin scripts
+        run: shellcheck -x bin/*
+        continue-on-error: true
 
   # ============================================================================
   # Unit Tests (No Docker Required)
@@ -37,57 +44,98 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Make test scripts executable
-        run: chmod +x tests/*.sh tests/**/*.sh 2>/dev/null || true
+      - name: Make scripts executable
+        run: |
+          chmod +x install.sh labrat_bootstrap.sh
+          chmod +x tests/*.sh tests/**/*.sh 2>/dev/null || true
+          chmod +x bin/* 2>/dev/null || true
         
       - name: Run unit tests
-        run: ./tests/run_tests.sh unit
-        
-  # ============================================================================
-  # Ubuntu Docker Tests
-  # ============================================================================
-  docker-ubuntu:
-    name: Docker Tests (Ubuntu 22.04)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        
-      - name: Build test container
-        run: docker build -t labrat-test -f tests/docker/Dockerfile.test-harness .
-        
-      - name: Run comprehensive tests
-        run: docker run --rm labrat-test ./tests/run_all_tests.sh
+        run: |
+          for test in tests/unit/test_*.sh; do
+            echo "=== Running $(basename $test) ==="
+            ./$test
+          done
 
   # ============================================================================
-  # CentOS Docker Tests (Bash 4.2 Compatibility)
+  # Multi-Distro Docker Tests
   # ============================================================================
-  docker-centos:
-    name: Docker Tests (CentOS 7 - Bash 4.2)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        
-      - name: Build CentOS test container
-        run: docker build -t labrat-test-centos -f tests/docker/Dockerfile.centos .
-        
-      - name: Run tests on CentOS
-        run: docker run --rm labrat-test-centos ./tests/run_tests.sh unit
-
-  # ============================================================================
-  # Module Installation Tests
-  # ============================================================================
-  install-tests:
-    name: Module Install Tests
+  docker-tests:
+    name: Docker Tests (${{ matrix.distro }})
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        module: [htop, ripgrep, bat, fd, fzf]
+        distro: [ubuntu, debian, fedora, centos]
+        include:
+          - distro: ubuntu
+            dockerfile: tests/docker/Dockerfile.ubuntu
+            description: "Ubuntu 22.04 (Bash 5.1)"
+          - distro: debian
+            dockerfile: tests/docker/Dockerfile.debian
+            description: "Debian 12 (Bash 5.2)"
+          - distro: fedora
+            dockerfile: tests/docker/Dockerfile.fedora
+            description: "Fedora 39 (Bash 5.2)"
+          - distro: centos
+            dockerfile: tests/docker/Dockerfile.centos
+            description: "CentOS 7 (Bash 4.2)"
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Build ${{ matrix.description }} container
+        run: docker build -t labrat-test-${{ matrix.distro }} -f ${{ matrix.dockerfile }} .
+        
+      - name: Run unit tests on ${{ matrix.distro }}
+        run: |
+          docker run --rm -e LABRAT_TESTING=1 labrat-test-${{ matrix.distro }} bash -c "
+            cd /home/testuser/.labrat
+            for test in tests/unit/test_*.sh; do
+              echo \"=== Running \$(basename \$test) ===\"
+              ./\$test || exit 1
+            done
+          "
+        
+      - name: Run integration tests on ${{ matrix.distro }}
+        run: |
+          docker run --rm -e LABRAT_TESTING=1 -e SKIP_CONFIRMATION=true labrat-test-${{ matrix.distro }} bash -c "
+            cd /home/testuser/.labrat
+            export PATH=/home/testuser/.local/bin:\$PATH
+            
+            # Install core modules
+            ./install.sh -m fzf,bat,starship,tmux,htop -y 2>&1 | tail -10
+            
+            # Run integration tests
+            for test in tests/integration/test_*.sh; do
+              echo \"=== Running \$(basename \$test) ===\"
+              ./\$test
+            done
+          "
+
+  # ============================================================================
+  # Comprehensive Module Installation Matrix
+  # ============================================================================
+  module-install-tests:
+    name: Module Install (${{ matrix.category }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        category: [utils, monitoring, productivity, shell, terminal]
+        include:
+          - category: utils
+            modules: "htop,ripgrep,bat,fd,fzf,eza,zoxide"
+          - category: monitoring
+            modules: "btop,htop,procs"
+          - category: productivity
+            modules: "atuin,tldr,direnv,just"
+          - category: shell
+            modules: "starship,zsh"
+          - category: terminal
+            modules: "tmux"
     steps:
       - uses: actions/checkout@v4
       
@@ -97,16 +145,90 @@ jobs:
       - name: Build test container
         run: docker build -t labrat-test -f tests/docker/Dockerfile.ubuntu .
         
-      - name: Install and verify ${{ matrix.module }}
+      - name: Install ${{ matrix.category }} modules
         run: |
-          docker run --rm labrat-test bash -c "
-            ./install.sh -m ${{ matrix.module }} -y
-            # Verify installation
-            [[ -f ~/.local/share/labrat/installed/${{ matrix.module }} ]]
+          docker run --rm -e LABRAT_TESTING=1 -e SKIP_CONFIRMATION=true labrat-test bash -c "
+            cd /home/testuser/.labrat
+            export PATH=/home/testuser/.local/bin:\$PATH
+            
+            echo '=== Installing ${{ matrix.modules }} ==='
+            ./install.sh -m ${{ matrix.modules }} -y 2>&1 | tail -20
+            
+            echo ''
+            echo '=== Verifying installations ==='
+            for module in \$(echo '${{ matrix.modules }}' | tr ',' ' '); do
+              if [[ -f ~/.local/share/labrat/installed/\$module ]]; then
+                echo \"✓ \$module installed: \$(cat ~/.local/share/labrat/installed/\$module)\"
+              else
+                echo \"✗ \$module NOT installed\"
+                exit 1
+              fi
+            done
           "
 
   # ============================================================================
-  # Isolation Tests
+  # Theme Switching Tests
+  # ============================================================================
+  theme-tests:
+    name: Theme Switching Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Build test container
+        run: docker build -t labrat-test -f tests/docker/Dockerfile.ubuntu .
+        
+      - name: Run theme switching tests
+        run: |
+          docker run --rm -e LABRAT_TESTING=1 -e SKIP_CONFIRMATION=true labrat-test bash -c "
+            cd /home/testuser/.labrat
+            export PATH=/home/testuser/.local/bin:\$PATH
+            
+            # Install modules with themes
+            ./install.sh -m tmux,fzf,bat,starship,btop,atuin -y 2>&1 | tail -5
+            
+            # Run theme tests
+            ./tests/integration/test_theme_switching.sh
+          "
+
+  # ============================================================================
+  # Full Installation Test (All Modules)
+  # ============================================================================
+  full-install:
+    name: Full Installation Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Build test container
+        run: docker build -t labrat-test -f tests/docker/Dockerfile.ubuntu .
+        
+      - name: Install ALL modules
+        run: |
+          docker run --rm -e LABRAT_TESTING=1 -e SKIP_CONFIRMATION=true labrat-test bash -c "
+            cd /home/testuser/.labrat
+            export PATH=/home/testuser/.local/bin:\$PATH
+            
+            # Full install
+            ./install.sh --all --yes 2>&1 | tail -30
+            
+            echo ''
+            echo '=== Installation Summary ==='
+            ls -la ~/.local/share/labrat/installed/ | wc -l
+            echo 'modules installed'
+            
+            # Run all tests
+            ./tests/integration/test_configuration.sh
+          "
+
+  # ============================================================================
+  # User Isolation Tests
   # ============================================================================
   isolation-tests:
     name: User Isolation Tests
@@ -117,30 +239,44 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         
-      - name: Build test harness container
+      - name: Build multi-user test container
         run: docker build -t labrat-test-harness -f tests/docker/Dockerfile.test-harness .
         
       - name: Run isolation tests
         run: |
           docker run --rm labrat-test-harness bash -c "
-            ./tests/isolation/test_user_isolation.sh 2>/dev/null || true
+            ./tests/isolation/test_user_isolation.sh
           "
+        continue-on-error: true
 
   # ============================================================================
-  # Integration Summary
+  # Test Summary
   # ============================================================================
   test-summary:
     name: Test Summary
-    needs: [lint, unit-tests, docker-ubuntu, docker-centos, install-tests]
+    needs: [lint, unit-tests, docker-tests, module-install-tests, theme-tests, full-install]
     runs-on: ubuntu-latest
     if: always()
     steps:
-      - name: Check Results
+      - name: Generate Summary
+        run: |
+          echo "## Test Results Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Lint | ${{ needs.lint.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Tests | ${{ needs.unit-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker Multi-Distro | ${{ needs.docker-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Module Install Matrix | ${{ needs.module-install-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Theme Tests | ${{ needs.theme-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Full Install | ${{ needs.full-install.result }} |" >> $GITHUB_STEP_SUMMARY
+          
+      - name: Check Critical Tests
         run: |
           if [[ "${{ needs.lint.result }}" == "failure" ]] || \
              [[ "${{ needs.unit-tests.result }}" == "failure" ]] || \
-             [[ "${{ needs.docker-ubuntu.result }}" == "failure" ]]; then
-            echo "Some tests failed!"
+             [[ "${{ needs.docker-tests.result }}" == "failure" ]]; then
+            echo "::error::Critical tests failed!"
             exit 1
           fi
           echo "All critical tests passed!"
