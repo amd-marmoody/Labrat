@@ -648,3 +648,97 @@ skip_unless() {
     fi
     return 1
 }
+
+# ============================================================================
+# Additional Test Functions (for integration tests)
+# ============================================================================
+
+# Log a test step
+log_test() {
+    echo -e "${BLUE}[TEST]${NC} $1"
+}
+
+# Log a header
+log_header() {
+    echo ""
+    echo -e "${CYAN}${BOLD}════════════════════════════════════════════════════════════════${NC}"
+    echo -e "${CYAN}${BOLD}  $1${NC}"
+    echo -e "${CYAN}${BOLD}════════════════════════════════════════════════════════════════${NC}"
+    echo ""
+}
+
+# Pass a test with message
+pass_test() {
+    echo -e "${GREEN}[PASS]${NC} $1"
+    ((TESTS_PASSED++))
+}
+
+# Fail a test with message
+fail_test() {
+    echo -e "${RED}[FAIL]${NC} $1"
+    ((TESTS_FAILED++))
+}
+
+# Skip a test with message
+skip_test() {
+    echo -e "${YELLOW}[SKIP]${NC} $1"
+    ((TESTS_SKIPPED++))
+}
+
+# Assert success (always passes)
+assert_success() {
+    local message="${1:-Assertion passed}"
+    pass_test "$message"
+    return 0
+}
+
+# Assert failure (always fails)
+assert_fail() {
+    local message="${1:-Assertion failed}"
+    fail_test "$message"
+    return 1
+}
+
+# Assert variable is not empty
+assert_not_empty() {
+    local value="$1"
+    local message="${2:-Value should not be empty}"
+    
+    if [[ -n "$value" ]]; then
+        return 0
+    else
+        fail_test "$message"
+        return 1
+    fi
+}
+
+# Run a test suite with named functions
+# Usage: run_test_suite "Suite Name" test_func1 test_func2 ...
+run_test_suite() {
+    local suite_name="$1"
+    shift
+    local test_functions=("$@")
+    
+    # Reset counters
+    TESTS_PASSED=0
+    TESTS_FAILED=0
+    TESTS_SKIPPED=0
+    TEST_FAILURES=()
+    
+    suite "$suite_name"
+    
+    for func in "${test_functions[@]}"; do
+        if declare -f "$func" &>/dev/null; then
+            # Run the test function
+            test_case "${func#test_}"
+            if "$func"; then
+                : # Test handled its own pass/fail
+            fi
+        else
+            echo -e "  ├─ ${func}: ${YELLOW}NOT FOUND${NC}"
+        fi
+    done
+    
+    print_summary
+    return $TESTS_FAILED
+}
