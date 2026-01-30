@@ -34,6 +34,12 @@ if [[ -f "${LABRAT_LIB_DIR}/file_ops.sh" ]]; then
     source "${LABRAT_LIB_DIR}/file_ops.sh"
 fi
 
+# 5. Load logging infrastructure (optional, for persistent logging)
+# shellcheck source=./logging.sh
+if [[ -f "${LABRAT_LIB_DIR}/logging.sh" ]]; then
+    source "${LABRAT_LIB_DIR}/logging.sh"
+fi
+
 # ============================================================================
 # Global Configuration
 # ============================================================================
