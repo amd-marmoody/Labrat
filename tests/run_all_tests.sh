@@ -94,8 +94,40 @@ run_integration_tests() {
         return 0
     fi
     
+    # Run in specific order for best coverage
+    local test_order=(
+        "test_configuration.sh"
+        "test_theme_switching.sh"
+        "test_functionality.sh"
+        "test_module_install.sh"
+    )
+    
+    for test_file in "${test_order[@]}"; do
+        local full_path="$int_dir/$test_file"
+        if [[ -f "$full_path" ]]; then
+            local test_name=$(basename "$full_path" .sh)
+            log_suite "Running: $test_name"
+            
+            if bash "$full_path"; then
+                log_pass "$test_name"
+            else
+                log_fail "$test_name"
+                SUITE_FAILURES+=("$test_name")
+            fi
+        fi
+    done
+    
+    # Run any additional tests not in the order list
     for test_file in "$int_dir"/test_*.sh; do
         if [[ -f "$test_file" ]]; then
+            local base_name=$(basename "$test_file")
+            # Skip if already run
+            local already_run=false
+            for ordered in "${test_order[@]}"; do
+                [[ "$base_name" == "$ordered" ]] && already_run=true && break
+            done
+            [[ "$already_run" == true ]] && continue
+            
             local test_name=$(basename "$test_file" .sh)
             log_suite "Running: $test_name"
             
